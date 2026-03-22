@@ -1,6 +1,7 @@
 # Pipeline de ingestão de dados
 
 from pathlib import Path
+import sys
 from src.collect.reader import read_assets
 from src.collect.fetcher import fetch_price_history
 from src.collect.writer import save_price_history
@@ -11,7 +12,7 @@ ASSETS_FILE = Path("config/assets.txt")
 OUTPUT_PATH = "data/bronze/prices"
 
 
-def main():
+def main() -> int:
     print("🚀 Iniciando coleta Bronze...")
 
     assets = read_assets(ASSETS_FILE)
@@ -20,6 +21,7 @@ def main():
     success = 0
     failed = 0
     empty = 0
+    failed_assets = []
 
     for asset_info in assets:
         asset = asset_info["asset"]
@@ -43,12 +45,23 @@ def main():
         except Exception as e:
             print(f"❌ Erro em {asset}: {e}")
             failed += 1
+            failed_assets.append(f"{asset} ({ticker})")
 
     print("\n📦 Resumo:")
     print(f"✔ Sucesso: {success}")
     print(f"⚠️ Sem dados: {empty}")
     print(f"❌ Erros: {failed}")
 
+    if failed_assets:
+        print("Ativos com falha:")
+        for failed_asset in failed_assets:
+            print(f"- {failed_asset}")
+
+    if failed > 0:
+        return 1
+
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
