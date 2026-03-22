@@ -1,5 +1,6 @@
 import pandas as pd
 import yfinance as yf
+from typing import Optional
 
 
 REQUIRED_COLUMNS = {
@@ -15,13 +16,19 @@ REQUIRED_COLUMNS = {
 }
 
 
-def fetch_price_history(asset_info: dict) -> pd.DataFrame:
+DEFAULT_START_DATE = "2015-01-01"
+
+
+def fetch_price_history(
+    asset_info: dict,
+    start_date: Optional[str] = None,
+) -> pd.DataFrame:
     ticker = asset_info["ticker"]
     asset = asset_info["asset"]
 
     df = yf.download(
         tickers=ticker,
-        start="2015-01-01",
+        start=start_date or DEFAULT_START_DATE,
         progress=False
     )
 
@@ -46,6 +53,9 @@ def fetch_price_history(asset_info: dict) -> pd.DataFrame:
         "Volume": "volume",
     })
 
+    if "adj_close" not in df.columns and "close" in df.columns:
+        df["adj_close"] = df["close"]
+
     # 🔹 4. Adiciona metadata
     df["asset"] = asset
     df["ticker"] = ticker
@@ -63,5 +73,6 @@ def fetch_price_history(asset_info: dict) -> pd.DataFrame:
 
     # 🔹 6. Ordena
     df = df.sort_values("date")
+    df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_localize(None)
 
     return df
