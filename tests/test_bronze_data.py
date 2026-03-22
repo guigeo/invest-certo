@@ -3,18 +3,23 @@ import pandas as pd
 
 
 BASE_PATH = Path("data/bronze/prices")
+EXPECTED_COLUMNS = {
+    "date",
+    "open",
+    "high",
+    "low",
+    "close",
+    "adj_close",
+    "volume",
+    "asset",
+    "ticker",
+}
 
 
 def load_data() -> pd.DataFrame:
     dfs = []
 
-    for asset_dir in BASE_PATH.glob("asset=*"):
-        file_path = asset_dir / "prices.parquet"
-
-        if not file_path.exists():
-            print(f"Arquivo não encontrado: {file_path}")
-            continue
-
+    for file_path in BASE_PATH.rglob("*.parquet"):
         df = pd.read_parquet(file_path)
         dfs.append(df)
 
@@ -25,41 +30,37 @@ def load_data() -> pd.DataFrame:
 
 
 def validate_schema(df: pd.DataFrame):
-    print("\n📌 SCHEMA")
-    print(df.dtypes)
-    print(f"Colunas: {list(df.columns)}")
+    missing_columns = EXPECTED_COLUMNS.difference(df.columns)
+    assert not missing_columns, f"Colunas ausentes: {sorted(missing_columns)}"
 
 
 def validate_shape(df: pd.DataFrame):
-    print("\n📊 SHAPE")
-    print(f"Linhas: {df.shape[0]}")
-    print(f"Colunas: {df.shape[1]}")
+    assert df.shape[0] > 0, "A Bronze precisa ter ao menos uma linha."
+    assert df.shape[1] == len(EXPECTED_COLUMNS), "Quantidade de colunas inesperada."
 
 
 def validate_dates(df: pd.DataFrame):
-    print("\n📅 INTERVALO DE DATAS")
-    print(f"Min: {df['date'].min()}")
-    print(f"Max: {df['date'].max()}")
+    assert df["date"].notna().all(), "Existem datas nulas na Bronze."
+    assert df["date"].min() <= df["date"].max(), "Intervalo de datas inválido."
 
 
 def validate_nulls(df: pd.DataFrame):
-    print("\n⚠️ VALORES NULOS")
-    print(df.isnull().sum())
+    required_non_null = ["date", "close", "asset", "ticker"]
+    nulls = df[required_non_null].isnull().sum()
+    assert (nulls == 0).all(), f"Campos obrigatórios com nulos: {nulls.to_dict()}"
 
 
 def validate_duplicates(df: pd.DataFrame):
-    print("\n🔁 DUPLICADOS")
-    print(f"Duplicados: {df.duplicated().sum()}")
+    duplicates = df.duplicated(subset=["asset", "ticker", "date"]).sum()
+    assert duplicates == 0, f"Duplicados por ativo/ticker/data: {duplicates}"
 
 
 def validate_assets_distribution(df: pd.DataFrame):
-    print("\n📊 REGISTROS POR ATIVO")
-    print(df.groupby("asset").size().sort_values(ascending=False))
+    asset_counts = df.groupby("asset").size()
+    assert (asset_counts > 0).all(), "Existe ativo sem registros válidos."
 
 
 def validate_last_price(df: pd.DataFrame):
-    print("\n💰 ÚLTIMO PREÇO POR ATIVO")
-
     df_last = (
         df.sort_values("date")
         .groupby("asset")
@@ -67,12 +68,11 @@ def validate_last_price(df: pd.DataFrame):
         .sort_values("asset")
     )
 
-    print(df_last[["asset", "date", "close"]])
+    assert not df_last.empty, "Não foi possível calcular o último preço por ativo."
+    assert (df_last["close"] > 0).all(), "Existem últimos preços não positivos."
 
 
-def main():
-    print("🚀 Iniciando validação Bronze...")
-
+def test_bronze_data_contract():
     df = load_data()
 
     validate_shape(df)
@@ -82,9 +82,3 @@ def main():
     validate_duplicates(df)
     validate_assets_distribution(df)
     validate_last_price(df)
-
-    print("\n✅ Validação concluída.")
-
-
-if __name__ == "__main__":
-    main()
