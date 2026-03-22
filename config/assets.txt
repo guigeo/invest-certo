@@ -3,10 +3,10 @@
 # asset|type|source|ticker
 
 BBAS3|stock|yahoo|BBAS3.SA
-EZTEC3|stock|yahoo|EZTEC3.SA
+EZTC3|stock|yahoo|EZTC3.SA
 KLBN3|stock|yahoo|KLBN3.SA
 JHSF3|stock|yahoo|JHSF3.SA
-ITAS4|stock|yahoo|ITAS4.SA
+ITSA4|stock|yahoo|ITSA4.SA
 SAPR4|stock|yahoo|SAPR4.SA
 TAEE4|stock|yahoo|TAEE4.SA
 VIVT3|stock|yahoo|VIVT3.SA
