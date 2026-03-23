@@ -6,6 +6,7 @@ import sys
 from src.collect.reader import read_assets
 from src.collect.fetcher import fetch_price_history
 from src.collect.writer import get_latest_stored_date, save_price_history
+from src.validators.bronze_prices_validator import validate_bronze_prices
 
 
 
@@ -20,9 +21,7 @@ def main() -> int:
     print(f"Total de ativos: {len(assets)}")
 
     success = 0
-    failed = 0
     empty = 0
-    failed_assets = []
 
     for asset_info in assets:
         asset = asset_info["asset"]
@@ -47,6 +46,7 @@ def main() -> int:
                 empty += 1
                 continue
 
+            validate_bronze_prices(df)
             path = save_price_history(df, OUTPUT_PATH)
 
             print(f"✅ Salvo em: {path}")
@@ -54,21 +54,11 @@ def main() -> int:
 
         except Exception as e:
             print(f"❌ Erro em {asset}: {e}")
-            failed += 1
-            failed_assets.append(f"{asset} ({ticker})")
+            return 1
 
     print("\n📦 Resumo:")
     print(f"✔ Sucesso: {success}")
     print(f"⚠️ Sem dados: {empty}")
-    print(f"❌ Erros: {failed}")
-
-    if failed_assets:
-        print("Ativos com falha:")
-        for failed_asset in failed_assets:
-            print(f"- {failed_asset}")
-
-    if failed > 0:
-        return 1
 
     return 0
 
