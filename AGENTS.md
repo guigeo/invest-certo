@@ -47,23 +47,26 @@ Construir uma plataforma simples de **recomendação de aportes mensais** (renda
 - A forma recomendada de explorar a Bronze localmente e via DuckDB, usando a view temporaria `bronze_prices`.
 
 ### 3.2 Silver / Gold
-- Existem scripts placeholders:
+- Silver implementada:
   - `pipelines/silver/transform_prices.py`
+  - saidas fisicas:
+    - `data/silver/prices_clean`
+    - `data/silver/asset_daily_status`
+- Gold ainda com script placeholder:
   - `pipelines/gold/build_features.py`
 - Contratos já definidos:
   - `data_contracts/bronze_prices.md`
   - `data_contracts/silver_prices_clean.md`
+  - `data_contracts/silver_asset_daily_status.md`
   - `data_contracts/gold_asset_features.md`
   - `data_contracts/gold_ranking_snapshot.md`
-- Ou seja: os contratos-base já foram formalizados, mas a implementação de Silver e Gold ainda falta.
+- Ou seja: Bronze e Silver ja estao estruturadas; a implementacao da Gold ainda falta.
 
 ## 4) Checklist / backlog (ordem sugerida)
 1. Implementar **Silver** usando DuckDB:
-   - ler parquet do Bronze (particionado)
-   - filtrar colunas e tipos corretos
-   - remover duplicados (por `asset`,`date`)
-   - lidar com dados faltantes (volume etc.) de forma consciente
-   - output em `data/silver/...` (a definir no contrato)
+   - manter `prices_clean` como camada canonica
+   - manter `asset_daily_status` como camada de elegibilidade e prontidao analitica
+   - evoluir validacoes e cobertura de testes conforme novos casos reais
 2. Implementar **Gold**:
    - saída `asset_features` por ativo/data
    - saída `ranking_snapshot` por data de referência
@@ -86,6 +89,7 @@ Quando o Codex for “continuar”:
   - tratar `date` como `DATE` para operações diárias e `TIMESTAMP` apenas onde fizer sentido
   - evitar “sobra” de timezone (padronizar UTC→naive como no Bronze)
   - usar a Silver como camada canônica para cálculo da Gold
+  - usar `asset_daily_status` para concentrar regras de prontidao e elegibilidade da Gold
   - separar a Gold em pelo menos dois datasets: `asset_features` e `ranking_snapshot`
   - Sempre alinhar o código com os contratos que você for criar (esse arquivo + `data_contracts/`).
 
@@ -99,8 +103,12 @@ Quando o Codex for “continuar”:
   PYTHONPATH=. ./.venv/bin/python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
   ```
 - (Futuro) Silver e Gold: mantenha o padrão:
+- Rodar Silver:
   ```
   PYTHONPATH=. ./.venv/bin/python pipelines/silver/transform_prices.py
+  ```
+- Gold:
+  ```
   PYTHONPATH=. ./.venv/bin/python pipelines/gold/build_features.py
   ```
 
@@ -122,6 +130,10 @@ Quando o Codex for “continuar”:
 - O utilitario de consulta da Bronze e somente leitura.
   - Ele registra a view temporaria `bronze_prices` apontando para `data/bronze/prices/**/*.parquet`.
   - As consultas sao fornecidas por arquivos `.sql` em `queries/bronze/`.
+- A Silver atual e full refresh.
+  - `prices_clean` e a base canonica para a Gold.
+  - `asset_daily_status` concentra flags de historico minimo, gap de calendario e elegibilidade.
+  - linhas anomalias do provider com `open/high/low = 0`, `close > 0` e `volume = 0` sao excluidas da `prices_clean`.
 
 ---
 

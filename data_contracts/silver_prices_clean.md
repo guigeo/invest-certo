@@ -11,7 +11,7 @@ Fonte de entrada:
 * origem: Bronze `prices`
 * granularidade: diaria
 * formato de processamento esperado: DuckDB
-* local de armazenamento proposto: `data/silver/prices_clean`
+* local de armazenamento: `data/silver/prices_clean`
 
 ## 2. Estrutura fisica do dataset
 
@@ -27,7 +27,7 @@ data/silver/prices_clean/
 Observacoes:
 
 * `run_date` representa a data de execucao da pipeline Silver no formato `YYYYMMDD`.
-* o dataset Silver pode ser reprocessado integralmente a partir da Bronze.
+* o dataset Silver e reprocessado integralmente a partir da Bronze na versao atual.
 * diferentemente da Bronze, o objetivo aqui nao e refletir o lote de ingestao, e sim entregar uma visao consolidada e confiavel.
 
 ## 3. Schema persistido no Parquet
@@ -55,7 +55,9 @@ Regras esperadas da Bronze para a Silver:
 * cast explicito de `date` para `DATE`
 * normalizacao de tipos numericos
 * enriquecimento com `asset_type` e `source` a partir de `config/assets.txt`
-* remocao de duplicados por chave `asset + date`
+* remocao de duplicados exatos por chave `asset + date`
+* falha da pipeline quando houver duplicidade conflitante para a mesma chave `asset + date`
+* exclusao de linhas anomalias do provider quando `open = high = low = 0`, `close > 0` e `volume = 0`
 * ordenacao logica por `asset, date`
 
 ## 5. Regras de qualidade de dados
@@ -107,6 +109,7 @@ Diretriz inicial:
 * valores de preco nao devem ser imputados
 * registros com preco invalido devem quebrar a pipeline
 * `volume` ausente pode ser convertido para `0` desde que `is_volume_missing = true`
+* `volume = 0` nao implica erro automatico; o caso segue para analise na visao `asset_daily_status`
 
 Essa regra permite manter o dataset utilizavel sem mascarar perda de qualidade.
 
@@ -128,4 +131,3 @@ Falhas que devem interromper a execucao:
 * preco nulo ou negativo
 * ativo fora do cadastro
 * valores de data invalidos
-
