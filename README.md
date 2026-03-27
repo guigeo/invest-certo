@@ -50,6 +50,9 @@ invest-certo/
 │   ├── bronze/                    # Queries SQL reutilizáveis da Bronze
 │   ├── silver/                    # Queries SQL reutilizáveis da Silver
 │   └── gold/                      # Queries SQL para o dashboard da Gold
+├── app/
+│   ├── data_access.py             # Acesso a dados da Gold para o dashboard
+│   └── streamlit_app.py           # Dashboard local em Streamlit
 ├── data/                          # Dados gerados localmente
 ├── tests/                         # Validações e testes do pipeline
 ├── AGENTS.md                      # Memória operacional do projeto
@@ -127,7 +130,7 @@ Existe uma validação da Bronze em `tests/test_bronze_data.py`, pensada para co
 Se o ambiente tiver `pytest` instalado, o teste pode ser executado com:
 
 ```bash
-PYTHONPATH=. ./.venv/bin/python -m pytest tests/test_bronze_data.py tests/test_bronze_query.py tests/test_silver_transform.py tests/test_gold_build_features.py
+uv run python -m pytest tests/test_bronze_data.py tests/test_bronze_query.py tests/test_silver_transform.py tests/test_gold_build_features.py tests/test_dashboard_data_access.py
 ```
 
 ---
@@ -153,7 +156,7 @@ O pipeline faz:
 Comando para rodar:
 
 ```bash
-PYTHONPATH=. ./.venv/bin/python pipelines/silver/transform_prices.py
+uv run python pipelines/silver/transform_prices.py
 ```
 
 ---
@@ -181,8 +184,35 @@ O pipeline faz:
 Comando para rodar:
 
 ```bash
-PYTHONPATH=. ./.venv/bin/python pipelines/gold/build_features.py
+uv run python pipelines/gold/build_features.py
 ```
+
+---
+
+## 🖥️ Dashboard Hoje
+
+O projeto agora possui um dashboard local em Streamlit para apoiar a decisao de aporte:
+
+* topo executivo com snapshot mais recente, ativos elegiveis e top pick
+* tabela e cards com ranking atual
+* comparacao rapida entre risco e retorno
+* analise detalhada por ativo com preco, medias moveis, drawdown e volatilidade
+* panorama agregado do mercado monitorado
+
+Pre-requisito:
+
+* gerar Silver e Gold antes de abrir o dashboard
+
+Comandos recomendados com `uv`:
+
+```bash
+uv sync
+uv run python pipelines/silver/transform_prices.py
+uv run python pipelines/gold/build_features.py
+uv run streamlit run app/streamlit_app.py
+```
+
+O dashboard consome apenas `data/gold/...` e as queries versionadas em `queries/gold/`.
 
 ---
 
@@ -229,4 +259,5 @@ Dado um conjunto de ativos, responder:
 * A Silver já materializa `prices_clean` e `asset_daily_status`
 * A Gold já materializa `asset_features` e `ranking_snapshot`
 * O dashboard pode consumir `queries/gold/` sem replicar regra de negócio
+* O fluxo Python do projeto agora prioriza `uv` para sincronizar dependencias e rodar os comandos
 * A estrutura foi pensada para futura migração para Databricks

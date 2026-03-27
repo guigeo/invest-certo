@@ -12,6 +12,8 @@ dependencies = [
     "yfinance>=1.2.0",
     "pyarrow>=17.0.0",
     "python-dotenv>=1.0.1",
+    "streamlit>=1.40.1",
+    "plotly>=6.6.0",
 ]
 
 [build-system]
