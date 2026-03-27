@@ -57,6 +57,9 @@ Construir uma plataforma simples de **recomendação de aportes mensais** (renda
   - saidas fisicas:
     - `data/gold/asset_features`
     - `data/gold/ranking_snapshot`
+- Dashboard local implementado:
+  - `app/streamlit_app.py`
+  - consumo exclusivo da Gold via `app/data_access.py`
 - Contratos já definidos:
   - `data_contracts/bronze_prices.md`
   - `data_contracts/silver_prices_clean.md`
@@ -99,20 +102,24 @@ Quando o Codex for “continuar”:
 ## 6) Comandos rápidos (para rodar no desenvolvimento)
 - Rodar Bronze:
   ```
-  PYTHONPATH=. ./.venv/bin/python pipelines/bronze/collect_prices.py
+  uv run python pipelines/bronze/collect_prices.py
   ```
 - Consultar Bronze:
   ```
-  PYTHONPATH=. ./.venv/bin/python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
+  uv run python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
   ```
 - (Futuro) Silver e Gold: mantenha o padrão:
 - Rodar Silver:
   ```
-  PYTHONPATH=. ./.venv/bin/python pipelines/silver/transform_prices.py
+  uv run python pipelines/silver/transform_prices.py
   ```
 - Gold:
   ```
-  PYTHONPATH=. ./.venv/bin/python pipelines/gold/build_features.py
+  uv run python pipelines/gold/build_features.py
+  ```
+- Dashboard:
+  ```
+  uv run streamlit run app/streamlit_app.py
   ```
 
 ## 7) Notas operacionais importantes
@@ -141,6 +148,9 @@ Quando o Codex for “continuar”:
   - `asset_features` concentra sinais diarios para graficos e analise.
   - `ranking_snapshot` materializa score, ranking, buckets e deltas temporais para apoio ao aporte mensal.
   - as queries de dashboard ficam em `queries/gold/`.
+- O dashboard atual usa Streamlit + Plotly.
+  - a leitura de dados acontece apenas sobre `data/gold/...`
+  - o fluxo operacional deve priorizar `uv run ...` e `uv sync`
 
 ---
 

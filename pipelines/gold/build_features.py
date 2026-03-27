@@ -265,6 +265,9 @@ def _attach_history_deltas(
     result_frames: list[pd.DataFrame] = []
     for _, asset_df in ranking_snapshot.groupby("asset", sort=True):
         asset_df = asset_df.sort_values("reference_date").copy()
+        asset_df["reference_date"] = pd.to_datetime(
+            asset_df["reference_date"]
+        ).astype("datetime64[ns]")
         history = asset_df[["reference_date", "rank_position", "score"]].copy()
         history = history.rename(
             columns={
@@ -273,7 +276,12 @@ def _attach_history_deltas(
                 "score": f"prior_score_{days}d",
             }
         )
-        history["available_from"] = history["history_date"] + pd.Timedelta(days=days)
+        history["history_date"] = pd.to_datetime(history["history_date"]).astype(
+            "datetime64[ns]"
+        )
+        history["available_from"] = (
+            history["history_date"] + pd.Timedelta(days=days)
+        ).astype("datetime64[ns]")
 
         merged = pd.merge_asof(
             asset_df.sort_values("reference_date"),
