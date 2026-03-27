@@ -13,7 +13,8 @@ O objetivo é identificar, de forma orientada a dados, qual ativo está mais atr
 * Coleta incremental por ativo com base na última `date` persistida
 * Particionamento Bronze por `asset/year/month`
 * Silver implementada em DuckDB com duas visões físicas
-* Evolução futura para Gold, S3 e Databricks + GenAI
+* Gold implementada com features, ranking e queries para dashboard
+* Evolução futura para S3, Databricks e camada GenAI
 
 ---
 
@@ -38,7 +39,7 @@ invest-certo/
 │   ├── silver/
 │   │   └── transform_prices.py    # Gera prices_clean e asset_daily_status
 │   └── gold/
-│       └── build_features.py      # Criação de métricas e ranking
+│       └── build_features.py      # Gera asset_features e ranking_snapshot
 │
 ├── src/
 │   ├── collect/                   # Leitura, coleta e escrita da Bronze
@@ -46,7 +47,9 @@ invest-certo/
 │   └── utils/                     # Funções auxiliares
 │
 ├── queries/
-│   └── bronze/                    # Queries SQL reutilizáveis da Bronze
+│   ├── bronze/                    # Queries SQL reutilizáveis da Bronze
+│   ├── silver/                    # Queries SQL reutilizáveis da Silver
+│   └── gold/                      # Queries SQL para o dashboard da Gold
 ├── data/                          # Dados gerados localmente
 ├── tests/                         # Validações e testes do pipeline
 ├── AGENTS.md                      # Memória operacional do projeto
@@ -119,11 +122,12 @@ Existe uma validação da Bronze em `tests/test_bronze_data.py`, pensada para co
 * consistência de último preço por ativo
 * execução de consultas SQL na Bronze e tratamento de erros do utilitário
 * transformação da Silver e regras de elegibilidade diária
+* construção da Gold para dashboard e ranking de aporte
 
 Se o ambiente tiver `pytest` instalado, o teste pode ser executado com:
 
 ```bash
-PYTHONPATH=. ./.venv/bin/python -m pytest tests/test_bronze_data.py tests/test_bronze_query.py tests/test_silver_transform.py
+PYTHONPATH=. ./.venv/bin/python -m pytest tests/test_bronze_data.py tests/test_bronze_query.py tests/test_silver_transform.py tests/test_gold_build_features.py
 ```
 
 ---
@@ -154,6 +158,34 @@ PYTHONPATH=. ./.venv/bin/python pipelines/silver/transform_prices.py
 
 ---
 
+## 🥇 Gold Hoje
+
+A Gold já está implementada e gera duas visões físicas:
+
+* `data/gold/asset_features`: base diária de sinais quantitativos para gráficos, análise e ranking
+* `data/gold/ranking_snapshot`: fotografia diária da recomendação relativa de aporte
+
+O pipeline faz:
+
+* leitura integral da Silver
+* cálculo de retorno, volatilidade, drawdown, médias móveis e sharpe simplificado
+* buckets discretos de momentum e risco
+* score `v1` auditável para ordenação dos ativos
+* deltas de score e ranking em horizontes comparáveis de 7 e 30 dias
+* materialização de queries em `queries/gold/` para:
+  * recomendações mais recentes
+  * histórico de preço e tendência
+  * histórico de ranking
+  * overview agregado de mercado
+
+Comando para rodar:
+
+```bash
+PYTHONPATH=. ./.venv/bin/python pipelines/gold/build_features.py
+```
+
+---
+
 ## 🚀 Roadmap
 
 ### Fase 1 - Base de Dados
@@ -166,7 +198,8 @@ PYTHONPATH=. ./.venv/bin/python pipelines/silver/transform_prices.py
 
 ### Fase 2 - Transformação
 
-* [ ] Criação da camada Gold com métricas e ranking
+* [x] Criação da camada Silver com DuckDB
+* [x] Criação da camada Gold com métricas e ranking
 * [x] Formalização inicial dos contratos de dados
 
 ### Fase 3 - GenAI
@@ -194,5 +227,6 @@ Dado um conjunto de ativos, responder:
 * A Bronze hoje salva localmente; S3 ainda não foi implementado
 * A Bronze pode ser explorada localmente via DuckDB usando o script de consulta e arquivos `.sql`
 * A Silver já materializa `prices_clean` e `asset_daily_status`
-* A Gold ainda está como placeholder
+* A Gold já materializa `asset_features` e `ranking_snapshot`
+* O dashboard pode consumir `queries/gold/` sem replicar regra de negócio
 * A estrutura foi pensada para futura migração para Databricks

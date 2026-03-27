@@ -52,15 +52,18 @@ Construir uma plataforma simples de **recomendação de aportes mensais** (renda
   - saidas fisicas:
     - `data/silver/prices_clean`
     - `data/silver/asset_daily_status`
-- Gold ainda com script placeholder:
+- Gold implementada:
   - `pipelines/gold/build_features.py`
+  - saidas fisicas:
+    - `data/gold/asset_features`
+    - `data/gold/ranking_snapshot`
 - Contratos já definidos:
   - `data_contracts/bronze_prices.md`
   - `data_contracts/silver_prices_clean.md`
   - `data_contracts/silver_asset_daily_status.md`
   - `data_contracts/gold_asset_features.md`
   - `data_contracts/gold_ranking_snapshot.md`
-- Ou seja: Bronze e Silver ja estao estruturadas; a implementacao da Gold ainda falta.
+- Ou seja: Bronze, Silver e Gold ja estao estruturadas para suportar dashboard e camada futura de explicacao.
 
 ## 4) Checklist / backlog (ordem sugerida)
 1. Implementar **Silver** usando DuckDB:
@@ -68,9 +71,9 @@ Construir uma plataforma simples de **recomendação de aportes mensais** (renda
    - manter `asset_daily_status` como camada de elegibilidade e prontidao analitica
    - evoluir validacoes e cobertura de testes conforme novos casos reais
 2. Implementar **Gold**:
-   - saída `asset_features` por ativo/data
-   - saída `ranking_snapshot` por data de referência
-   - features iniciais: retorno, volatilidade, drawdown, tendência, métricas de “qualidade” (p.ex. sharpe simplificado)
+   - manter `asset_features` como base canonica para graficos e sinais por ativo/data
+   - manter `ranking_snapshot` como base de recomendacao diaria para aporte
+   - expor consultas para dashboard sobre recomendacoes atuais, historico de preco, historico de ranking e overview de mercado
 3. **Alinhar com README**:
    - introduzir S3/Boto3 (upload/download)
    - versionamento de datasets
@@ -134,6 +137,10 @@ Quando o Codex for “continuar”:
   - `prices_clean` e a base canonica para a Gold.
   - `asset_daily_status` concentra flags de historico minimo, gap de calendario e elegibilidade.
   - linhas anomalias do provider com `open/high/low = 0`, `close > 0` e `volume = 0` sao excluidas da `prices_clean`.
+- A Gold atual tambem e full refresh.
+  - `asset_features` concentra sinais diarios para graficos e analise.
+  - `ranking_snapshot` materializa score, ranking, buckets e deltas temporais para apoio ao aporte mensal.
+  - as queries de dashboard ficam em `queries/gold/`.
 
 ---
 

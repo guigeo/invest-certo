@@ -2,19 +2,18 @@
 
 ## 1. Descricao do dataset
 
-O dataset `asset_features` da camada Gold armazena metricas calculadas por ativo e por data de referencia, a partir da Silver `prices_clean`.
-
-O objetivo deste dataset e concentrar os sinais quantitativos que alimentam o ranking de aportes e, no futuro, a camada de explicacao via LLM.
+O dataset `asset_features` da camada Gold armazena metricas diarias por ativo para analise de preco, risco, tendencia e momentum, servindo como base para o ranking de aportes e para os graficos do dashboard.
 
 Fonte de entrada:
 
-* origem: Silver `prices_clean`
+* origem principal: Silver `prices_clean`
+* gate de prontidao: Silver `asset_daily_status`
 * granularidade: ativo por dia
-* local de armazenamento proposto: `data/gold/asset_features`
+* local de armazenamento: `data/gold/asset_features`
 
 ## 2. Estrutura fisica do dataset
 
-Layout proposto:
+Layout esperado:
 
 ```text
 data/gold/asset_features/
@@ -22,6 +21,11 @@ data/gold/asset_features/
     reference_month=<mm>/
       asset_features_<run_date>.parquet
 ```
+
+Observacoes:
+
+* `run_date` representa a data de execucao da pipeline Gold no formato `YYYYMMDD`
+* a Gold atual e full refresh a partir da Silver
 
 ## 3. Schema persistido no Parquet
 
@@ -31,29 +35,36 @@ data/gold/asset_features/
 | `asset` | `string` | Sim | Identificador logico do ativo. |
 | `ticker` | `string` | Sim | Ticker do ativo. |
 | `asset_type` | `string` | Sim | Tipo do ativo. |
-| `close` | `double` | Sim | Preco de fechamento na data de referencia. |
-| `adj_close` | `double` | Sim | Preco ajustado na data de referencia. |
-| `daily_return` | `double` | Nao | Retorno diario simples. |
-| `return_30d` | `double` | Nao | Retorno acumulado em 30 dias uteis de negociacao. |
-| `return_90d` | `double` | Nao | Retorno acumulado em 90 dias uteis de negociacao. |
-| `return_252d` | `double` | Nao | Retorno acumulado em aproximadamente 12 meses uteis. |
-| `volatility_30d` | `double` | Nao | Volatilidade rolling de 30 observacoes. |
-| `drawdown_252d` | `double` | Nao | Drawdown em relacao ao pico recente de 252 observacoes. |
-| `ma_20` | `double` | Nao | Media movel simples curta. |
-| `ma_90` | `double` | Nao | Media movel simples longa. |
-| `trend_ratio` | `double` | Nao | Relacao entre media curta e longa para capturar tendencia. |
-| `sharpe_like_90d` | `double` | Nao | Medida simplificada de retorno medio sobre volatilidade. |
-| `data_points_252d` | `integer` | Sim | Quantidade de observacoes validas consideradas na janela principal. |
-| `feature_status` | `string` | Sim | Estado do calculo. Ex.: `complete`, `insufficient_history`. |
+| `close` | `double` | Sim | Preco de fechamento da data. |
+| `adj_close` | `double` | Sim | Preco ajustado da data. |
+| `daily_return` | `double` | Nao | Retorno simples em relacao ao dia util anterior. |
+| `return_30d` | `double` | Nao | Retorno acumulado em 30 observacoes. |
+| `return_90d` | `double` | Nao | Retorno acumulado em 90 observacoes. |
+| `return_252d` | `double` | Nao | Retorno acumulado em 252 observacoes. |
+| `volatility_30d` | `double` | Nao | Volatilidade rolling anualizada em 30 observacoes. |
+| `drawdown_252d` | `double` | Nao | Distancia em relacao ao pico recente de 252 observacoes. |
+| `ma_20` | `double` | Nao | Media movel de 20 observacoes. |
+| `ma_90` | `double` | Nao | Media movel de 90 observacoes. |
+| `trend_ratio` | `double` | Nao | Razao entre `ma_20` e `ma_90`. |
+| `sharpe_like_90d` | `double` | Nao | Retorno medio sobre volatilidade em 90 observacoes, anualizado. |
+| `data_points_252d` | `integer` | Sim | Quantidade de observacoes validas disponiveis na janela principal. |
+| `feature_status` | `string` | Sim | Situacao do calculo. Ex.: `complete`, `insufficient_history`. |
+| `distance_to_ma20` | `double` | Nao | Distancia percentual do preco ajustado em relacao a `ma_20`. |
+| `distance_to_ma90` | `double` | Nao | Distancia percentual do preco ajustado em relacao a `ma_90`. |
+| `price_vs_52w_high` | `double` | Nao | Distancia percentual em relacao ao topo da janela de 252 observacoes. |
+| `price_vs_52w_low` | `double` | Nao | Distancia percentual em relacao ao fundo da janela de 252 observacoes. |
+| `momentum_bucket` | `string` | Sim | Classificacao discreta de momentum: `strong`, `neutral`, `weak`. |
+| `risk_bucket` | `string` | Sim | Classificacao discreta de risco: `low`, `medium`, `high`. |
 
 ## 4. Regras de calculo
 
-Diretrizes iniciais:
+Diretrizes da versao atual:
 
-* as features devem ser calculadas por `asset`, ordenadas por `date`
-* `reference_date` deve refletir a data da linha de Silver usada no calculo
-* janelas devem usar historico anterior disponivel do proprio ativo
-* quando nao houver historico suficiente, a feature pode ficar nula, desde que `feature_status` explicite a situacao
+* calcular as features por `asset`, ordenadas por `reference_date`
+* usar `adj_close` como base para retornos, medias moveis e drawdown
+* manter linhas com historico insuficiente, desde que `feature_status` sinalize a situacao
+* herdar o gate de elegibilidade da Silver para que a Gold nao replique regras de calendario e volume
+* usar buckets discretos para facilitar leitura no dashboard
 
 ## 5. Regras de qualidade de dados
 
@@ -75,20 +86,35 @@ Nao sao permitidos valores nulos em:
 * `adj_close`
 * `data_points_252d`
 * `feature_status`
+* `momentum_bucket`
+* `risk_bucket`
 
 ### 5.3 Regras semanticas
 
+* `close` e `adj_close` devem ser positivos
 * `data_points_252d` deve ser maior ou igual a zero
-* `feature_status` deve vir de um conjunto controlado
 * `volatility_30d` nao pode ser negativa
-* `drawdown_252d` deve estar no intervalo `[-1, 0]`, salvo ajuste futuro de metodologia
+* `drawdown_252d` deve estar no intervalo `[-1, 0]`
+* `feature_status` deve pertencer ao dominio controlado
+* `momentum_bucket` deve estar em `strong`, `neutral`, `weak`
+* `risk_bucket` deve estar em `low`, `medium`, `high`
 
-## 6. O que deve quebrar a pipeline
+## 6. Dominio controlado
+
+Valores aceitos em `feature_status`:
+
+* `complete`
+* `insufficient_history`
+* `volume_missing`
+* `calendar_gap_anomaly`
+* `invalid_price`
+
+## 7. O que deve quebrar a pipeline
 
 Falhas que devem interromper a execucao:
 
-* ausencia de chave unica por `asset + reference_date`
-* ativo sem correspondencia com a Silver
-* fechamento nulo ou invalido
-* calculo numerico resultando em infinito ou NaN fora dos campos explicitamente opcionais
-
+* duplicidade por `asset + reference_date`
+* fechamento nulo, zero ou negativo
+* infinito ou NaN em campos numericos obrigatorios
+* `drawdown_252d` fora do intervalo previsto
+* bucket fora dos dominios controlados
