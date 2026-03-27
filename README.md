@@ -12,7 +12,8 @@ O objetivo é identificar, de forma orientada a dados, qual ativo está mais atr
 * Camada Bronze salva localmente em parquet
 * Coleta incremental por ativo com base na última `date` persistida
 * Particionamento Bronze por `asset/year/month`
-* Evolução futura para DuckDB (Silver/Gold), S3 e Databricks + GenAI
+* Silver implementada em DuckDB com duas visões físicas
+* Evolução futura para Gold, S3 e Databricks + GenAI
 
 ---
 
@@ -35,7 +36,7 @@ invest-certo/
 │   │   ├── collect_prices.py      # Pipeline de ingestão de dados
 │   │   └── query_prices.py        # Consulta SQL na Bronze
 │   ├── silver/
-│   │   └── transform_prices.py    # Limpeza e transformação
+│   │   └── transform_prices.py    # Gera prices_clean e asset_daily_status
 │   └── gold/
 │       └── build_features.py      # Criação de métricas e ranking
 │
@@ -117,11 +118,38 @@ Existe uma validação da Bronze em `tests/test_bronze_data.py`, pensada para co
 * ausência de duplicidade por `asset`, `ticker` e `date`
 * consistência de último preço por ativo
 * execução de consultas SQL na Bronze e tratamento de erros do utilitário
+* transformação da Silver e regras de elegibilidade diária
 
 Se o ambiente tiver `pytest` instalado, o teste pode ser executado com:
 
 ```bash
-PYTHONPATH=. ./.venv/bin/python -m pytest tests/test_bronze_data.py tests/test_bronze_query.py
+PYTHONPATH=. ./.venv/bin/python -m pytest tests/test_bronze_data.py tests/test_bronze_query.py tests/test_silver_transform.py
+```
+
+---
+
+## 🥈 Silver Hoje
+
+A Silver já está implementada em DuckDB e gera duas visões físicas:
+
+* `data/silver/prices_clean`: base canônica, tipada, deduplicada e enriquecida com cadastro
+* `data/silver/asset_daily_status`: visão diária de qualidade e prontidão analítica por ativo
+
+O pipeline faz:
+
+* leitura integral da Bronze
+* join com `config/assets.txt`
+* cast de `date` para `DATE`
+* remoção de duplicados exatos por `asset + date`
+* falha quando houver duplicidade conflitante
+* exclusão de snapshots anômalos do provider com `open/high/low = 0`, `close > 0` e `volume = 0`
+* flags de histórico mínimo em 30, 90 e 252 observações
+* flags de gap de calendário e elegibilidade para futura Gold
+
+Comando para rodar:
+
+```bash
+PYTHONPATH=. ./.venv/bin/python pipelines/silver/transform_prices.py
 ```
 
 ---
@@ -133,11 +161,11 @@ PYTHONPATH=. ./.venv/bin/python -m pytest tests/test_bronze_data.py tests/test_b
 * [x] Coleta de preços históricos
 * [x] Persistência local em parquet na Bronze
 * [x] Consulta SQL local da Bronze com DuckDB
+* [x] Implementação inicial da Silver com duas visões
 * [ ] Armazenamento em S3
 
 ### Fase 2 - Transformação
 
-* [ ] Criação da camada Silver com DuckDB
 * [ ] Criação da camada Gold com métricas e ranking
 * [x] Formalização inicial dos contratos de dados
 
@@ -165,5 +193,6 @@ Dado um conjunto de ativos, responder:
 * O LLM será utilizado como camada de explicação, não como motor de decisão
 * A Bronze hoje salva localmente; S3 ainda não foi implementado
 * A Bronze pode ser explorada localmente via DuckDB usando o script de consulta e arquivos `.sql`
-* Silver e Gold ainda estão como placeholders
+* A Silver já materializa `prices_clean` e `asset_daily_status`
+* A Gold ainda está como placeholder
 * A estrutura foi pensada para futura migração para Databricks
