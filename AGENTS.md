@@ -16,6 +16,7 @@ Construir uma plataforma simples de **recomendação de aportes mensais** (renda
 
 ### 3.1 Bronze (coleta)
 - Script: `pipelines/bronze/collect_prices.py`
+- Consulta local: `pipelines/bronze/query_prices.py`
 - Entrada: `config/assets.txt`
   - Formato esperado das linhas: `asset|type|source|ticker`
   - `src/collect/reader.py` valida:
@@ -43,33 +44,34 @@ Construir uma plataforma simples de **recomendação de aportes mensais** (renda
 **Decisões implícitas até aqui:**
 - **`date` sem timezone** (naive) dentro dos dataframes/parquets (converter para UTC e depois remover tz).
 - O “S3” do README ainda **não foi aplicado**: hoje o Bronze salva localmente.
+- A forma recomendada de explorar a Bronze localmente e via DuckDB, usando a view temporaria `bronze_prices`.
 
 ### 3.2 Silver / Gold
 - Existem scripts placeholders:
   - `pipelines/silver/transform_prices.py`
   - `pipelines/gold/build_features.py`
-- Os `data_contracts/bronze|silver|gold` ainda estão praticamente vazios.
-- Ou seja: temos Bronze funcional, mas falta o restante do pipeline.
+- Contratos já definidos:
+  - `data_contracts/bronze_prices.md`
+  - `data_contracts/silver_prices_clean.md`
+  - `data_contracts/gold_asset_features.md`
+  - `data_contracts/gold_ranking_snapshot.md`
+- Ou seja: os contratos-base já foram formalizados, mas a implementação de Silver e Gold ainda falta.
 
 ## 4) Checklist / backlog (ordem sugerida)
-1. **Criar contratos de dados (importante):**
-   - `data_contracts/bronze/prices.md`
-   - `data_contracts/silver/prices_clean.md`
-   - `data_contracts/gold/ranking.md`
-   - Definir tipos, regras de validação, e o que pode quebrar a pipeline.
-2. Implementar **Silver** usando DuckDB:
+1. Implementar **Silver** usando DuckDB:
    - ler parquet do Bronze (particionado)
    - filtrar colunas e tipos corretos
    - remover duplicados (por `asset`,`date`)
    - lidar com dados faltantes (volume etc.) de forma consciente
    - output em `data/silver/...` (a definir no contrato)
-3. Implementar **Gold**:
-   - features por ativo: retorno (diário/mensal), volatilidade, drawdown, tendência, métricas de “qualidade” (p.ex. sharpe simplificado)
-   - ranking e ranking histórico (snapshot por data)
-4. **Alinhar com README**:
+2. Implementar **Gold**:
+   - saída `asset_features` por ativo/data
+   - saída `ranking_snapshot` por data de referência
+   - features iniciais: retorno, volatilidade, drawdown, tendência, métricas de “qualidade” (p.ex. sharpe simplificado)
+3. **Alinhar com README**:
    - introduzir S3/Boto3 (upload/download)
    - versionamento de datasets
-5. Testes:
+4. Testes:
    - unit tests para reader/fetcher/writer
    - validação de schema (colunas, tipos) no Silver/Gold.
 
@@ -83,12 +85,18 @@ Quando o Codex for “continuar”:
   - priorizar DuckDB para consultas (já está como dependência)
   - tratar `date` como `DATE` para operações diárias e `TIMESTAMP` apenas onde fizer sentido
   - evitar “sobra” de timezone (padronizar UTC→naive como no Bronze)
-- Sempre alinhar o código com os contratos que você for criar (esse arquivo + `data_contracts/`).
+  - usar a Silver como camada canônica para cálculo da Gold
+  - separar a Gold em pelo menos dois datasets: `asset_features` e `ranking_snapshot`
+  - Sempre alinhar o código com os contratos que você for criar (esse arquivo + `data_contracts/`).
 
 ## 6) Comandos rápidos (para rodar no desenvolvimento)
 - Rodar Bronze:
   ```
   PYTHONPATH=. ./.venv/bin/python pipelines/bronze/collect_prices.py
+  ```
+- Consultar Bronze:
+  ```
+  PYTHONPATH=. ./.venv/bin/python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
   ```
 - (Futuro) Silver e Gold: mantenha o padrão:
   ```
@@ -111,6 +119,9 @@ Quando o Codex for “continuar”:
   ```
 - O projeto hoje usa `.venv` local para execução.
   - Se o import de `src` falhar, o `PYTHONPATH=.` precisa estar presente no comando.
+- O utilitario de consulta da Bronze e somente leitura.
+  - Ele registra a view temporaria `bronze_prices` apontando para `data/bronze/prices/**/*.parquet`.
+  - As consultas sao fornecidas por arquivos `.sql` em `queries/bronze/`.
 
 ---
 

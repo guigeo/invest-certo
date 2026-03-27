@@ -25,13 +25,15 @@ invest-certo/
 │   └── assets.txt                 # Lista de ativos monitorados
 │
 ├── data_contracts/
-│   ├── bronze.md                  # Definição da camada Bronze
-│   ├── silver.md                  # Definição da camada Silver
-│   └── gold.md                    # Definição da camada Gold
+│   ├── bronze_prices.md           # Contrato da camada Bronze
+│   ├── silver_prices_clean.md     # Contrato da camada Silver
+│   ├── gold_asset_features.md     # Contrato de features da Gold
+│   └── gold_ranking_snapshot.md   # Contrato do ranking da Gold
 │
 ├── pipelines/
 │   ├── bronze/
-│   │   └── collect_prices.py      # Pipeline de ingestão de dados
+│   │   ├── collect_prices.py      # Pipeline de ingestão de dados
+│   │   └── query_prices.py        # Consulta SQL na Bronze
 │   ├── silver/
 │   │   └── transform_prices.py    # Limpeza e transformação
 │   └── gold/
@@ -42,6 +44,8 @@ invest-certo/
 │   ├── transform/                 # Regras de transformação
 │   └── utils/                     # Funções auxiliares
 │
+├── queries/
+│   └── bronze/                    # Queries SQL reutilizáveis da Bronze
 ├── data/                          # Dados gerados localmente
 ├── tests/                         # Validações e testes do pipeline
 ├── AGENTS.md                      # Memória operacional do projeto
@@ -62,6 +66,7 @@ O Bronze já está funcional e faz:
 * fallback de `adj_close = close` quando `Adj Close` não vier do provider
 * gravação incremental por ativo
 * persistência em parquet com particionamento por empresa, ano e mês
+* consulta local via DuckDB sobre todos os parquets da Bronze
 
 Layout atual:
 
@@ -85,6 +90,22 @@ Comando para rodar:
 PYTHONPATH=. ./.venv/bin/python pipelines/bronze/collect_prices.py
 ```
 
+Comando para consultar:
+
+```bash
+PYTHONPATH=. ./.venv/bin/python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
+```
+
+A view temporária disponível nas queries é `bronze_prices`, apontando para todos os arquivos em `data/bronze/prices/**/*.parquet`.
+
+Exemplos:
+
+```bash
+PYTHONPATH=. ./.venv/bin/python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
+PYTHONPATH=. ./.venv/bin/python pipelines/bronze/query_prices.py --file queries/bronze/date_range_by_asset.sql
+PYTHONPATH=. ./.venv/bin/python pipelines/bronze/query_prices.py --file queries/bronze/latest_rows_for_asset.sql --limit 10
+```
+
 ---
 
 ## 🧪 Validação
@@ -95,11 +116,12 @@ Existe uma validação da Bronze em `tests/test_bronze_data.py`, pensada para co
 * datas válidas
 * ausência de duplicidade por `asset`, `ticker` e `date`
 * consistência de último preço por ativo
+* execução de consultas SQL na Bronze e tratamento de erros do utilitário
 
 Se o ambiente tiver `pytest` instalado, o teste pode ser executado com:
 
 ```bash
-PYTHONPATH=. ./.venv/bin/python -m pytest tests/test_bronze_data.py
+PYTHONPATH=. ./.venv/bin/python -m pytest tests/test_bronze_data.py tests/test_bronze_query.py
 ```
 
 ---
@@ -110,13 +132,14 @@ PYTHONPATH=. ./.venv/bin/python -m pytest tests/test_bronze_data.py
 
 * [x] Coleta de preços históricos
 * [x] Persistência local em parquet na Bronze
+* [x] Consulta SQL local da Bronze com DuckDB
 * [ ] Armazenamento em S3
 
 ### Fase 2 - Transformação
 
 * [ ] Criação da camada Silver com DuckDB
 * [ ] Criação da camada Gold com métricas e ranking
-* [ ] Formalização dos contratos de dados
+* [x] Formalização inicial dos contratos de dados
 
 ### Fase 3 - GenAI
 
@@ -141,5 +164,6 @@ Dado um conjunto de ativos, responder:
 * Projeto orientado a arquitetura de dados, não apenas IA
 * O LLM será utilizado como camada de explicação, não como motor de decisão
 * A Bronze hoje salva localmente; S3 ainda não foi implementado
+* A Bronze pode ser explorada localmente via DuckDB usando o script de consulta e arquivos `.sql`
 * Silver e Gold ainda estão como placeholders
 * A estrutura foi pensada para futura migração para Databricks
