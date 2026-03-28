@@ -8,6 +8,7 @@ import duckdb
 import pandas as pd
 
 from src.collect.reader import read_assets
+from src.validators.price_rules import PRICE_TOLERANCE
 from src.validators.silver_prices_validator import (
     SilverValidationError,
     validate_non_negative,
@@ -22,7 +23,6 @@ SILVER_BASE_PATH = Path("data/silver")
 PRICES_CLEAN_OUTPUT = SILVER_BASE_PATH / "prices_clean"
 ASSET_DAILY_STATUS_OUTPUT = SILVER_BASE_PATH / "asset_daily_status"
 MAX_EXPECTED_GAP_DAYS = 5
-PRICE_TOLERANCE = 1e-3
 
 PRICES_CLEAN_COLUMNS = [
     "date",

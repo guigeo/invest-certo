@@ -71,6 +71,7 @@ O Bronze já está funcional e faz:
 * coleta com `yfinance`
 * normalização do schema para `date, open, high, low, close, adj_close, volume, asset, ticker`
 * fallback de `adj_close = close` quando `Adj Close` não vier do provider
+* validação de consistência de preço com tolerância numérica para ruído de ponto flutuante do provider
 * gravação incremental por ativo
 * persistência em parquet com particionamento por empresa, ano e mês
 * consulta local via DuckDB sobre todos os parquets da Bronze

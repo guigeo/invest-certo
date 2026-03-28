@@ -111,9 +111,17 @@ Para `volume`, o valor esperado e maior ou igual a zero.
 
 ### 7.4 Consistencia de preco
 
-A seguinte relacao deve ser verdadeira para cada linha:
+A seguinte relacao deve ser verdadeira para cada linha, usando tolerancia numerica de `1e-3` para acomodar ruido de ponto flutuante do provider:
 
 * `low <= close <= high`
+* `low <= open <= high`
+
+Na pratica, o pipeline valida:
+
+* `low <= close + 1e-3`
+* `close <= high + 1e-3`
+* `low <= open + 1e-3`
+* `open <= high + 1e-3`
 
 ### 7.5 Chave unica
 

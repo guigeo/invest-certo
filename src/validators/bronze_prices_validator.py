@@ -3,6 +3,8 @@ from typing import Iterable
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
+from src.validators.price_rules import PRICE_TOLERANCE
+
 
 REQUIRED_COLUMNS = (
     "date",
@@ -117,14 +119,18 @@ def _validate_volume(df: pd.DataFrame) -> None:
 def _validate_price_consistency(df: pd.DataFrame) -> None:
     invalid_rows = df[
         ~(
-            (df["low"] <= df["close"])
-            & (df["close"] <= df["high"])
+            (df["low"] <= df["close"] + PRICE_TOLERANCE)
+            & (df["close"] <= df["high"] + PRICE_TOLERANCE)
+            & (df["low"] <= df["open"] + PRICE_TOLERANCE)
+            & (df["open"] <= df["high"] + PRICE_TOLERANCE)
         )
     ]
     if not invalid_rows.empty:
-        sample = invalid_rows[["asset", "date", "low", "close", "high"]]
+        sample = invalid_rows[["asset", "date", "low", "open", "close", "high"]]
         raise BronzePricesValidationError(
             "Inconsistencia de preco encontrada. "
-            "A regra esperada e low <= close <= high. "
+            "A regra esperada e low <= close <= high, "
+            "com open dentro do intervalo [low, high], "
+            f"usando tolerancia de {PRICE_TOLERANCE}. "
             f"Amostra: {sample.head(5).to_dict('records')}"
         )
