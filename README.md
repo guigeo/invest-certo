@@ -28,6 +28,7 @@ invest-certo/
 │
 ├── data_contracts/
 │   ├── bronze_prices.md           # Contrato da camada Bronze
+│   ├── silver_asset_daily_status.md
 │   ├── silver_prices_clean.md     # Contrato da camada Silver
 │   ├── gold_asset_features.md     # Contrato de features da Gold
 │   └── gold_ranking_snapshot.md   # Contrato do ranking da Gold
@@ -43,18 +44,19 @@ invest-certo/
 │
 ├── src/
 │   ├── collect/                   # Leitura, coleta e escrita da Bronze
-│   ├── transform/                 # Regras de transformação
-│   └── utils/                     # Funções auxiliares
+│   └── validators/                # Validadores e regras compartilhadas
 │
 ├── queries/
 │   ├── bronze/                    # Queries SQL reutilizáveis da Bronze
 │   ├── silver/                    # Queries SQL reutilizáveis da Silver
 │   └── gold/                      # Queries SQL para o dashboard da Gold
+│
 ├── app/
 │   ├── data_access.py             # Acesso a dados da Gold para o dashboard
 │   └── streamlit_app.py           # Dashboard local em Streamlit
+├── run_pipeline.sh                # Pipeline completo com log e alerta
 ├── data/                          # Dados gerados localmente
-├── tests/                         # Validações e testes do pipeline
+├── tests/                         # Testes do pipeline e contratos
 ├── AGENTS.md                      # Memória operacional do projeto
 ├── pyproject.toml
 └── README.md
@@ -71,7 +73,7 @@ O Bronze já está funcional e faz:
 * coleta com `yfinance`
 * normalização do schema para `date, open, high, low, close, adj_close, volume, asset, ticker`
 * fallback de `adj_close = close` quando `Adj Close` não vier do provider
-* validação de consistência de preço com tolerância numérica para ruído de ponto flutuante do provider
+* validação de consistência de preço com tolerância compartilhada de `1e-3` para ruído de ponto flutuante do provider
 * gravação incremental por ativo
 * persistência em parquet com particionamento por empresa, ano e mês
 * consulta local via DuckDB sobre todos os parquets da Bronze
@@ -95,13 +97,13 @@ Regra do incremental:
 Comando para rodar:
 
 ```bash
-PYTHONPATH=. ./.venv/bin/python pipelines/bronze/collect_prices.py
+PYTHONPATH=. uv run python pipelines/bronze/collect_prices.py
 ```
 
 Comando para consultar:
 
 ```bash
-PYTHONPATH=. ./.venv/bin/python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
+PYTHONPATH=. uv run python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
 ```
 
 A view temporária disponível nas queries é `bronze_prices`, apontando para todos os arquivos em `data/bronze/prices/**/*.parquet`.
@@ -109,21 +111,31 @@ A view temporária disponível nas queries é `bronze_prices`, apontando para to
 Exemplos:
 
 ```bash
-PYTHONPATH=. ./.venv/bin/python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
-PYTHONPATH=. ./.venv/bin/python pipelines/bronze/query_prices.py --file queries/bronze/date_range_by_asset.sql
-PYTHONPATH=. ./.venv/bin/python pipelines/bronze/query_prices.py --file queries/bronze/latest_rows_for_asset.sql --limit 10
+PYTHONPATH=. uv run python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
+PYTHONPATH=. uv run python pipelines/bronze/query_prices.py --file queries/bronze/date_range_by_asset.sql
+PYTHONPATH=. uv run python pipelines/bronze/query_prices.py --file queries/bronze/latest_rows_for_asset.sql --limit 10
 ```
 
 ---
 
 ## 🧪 Validação
 
-Existe uma validação da Bronze em `tests/test_bronze_data.py`, pensada para conferir:
+O projeto ja possui testes cobrindo Bronze, Silver, Gold e dashboard. Os arquivos principais hoje sao:
+
+* `tests/test_bronze_data.py`
+* `tests/test_bronze_query.py`
+* `tests/test_bronze_prices_validator.py`
+* `tests/test_silver_transform.py`
+* `tests/test_gold_build_features.py`
+* `tests/test_dashboard_data_access.py`
+
+Essa cobertura valida:
 
 * presença das colunas esperadas
 * datas válidas
 * ausência de duplicidade por `asset`, `ticker` e `date`
 * consistência de último preço por ativo
+* tolerância numérica na validação Bronze
 * execução de consultas SQL na Bronze e tratamento de erros do utilitário
 * transformação da Silver e regras de elegibilidade diária
 * construção da Gold para dashboard e ranking de aporte
@@ -131,7 +143,7 @@ Existe uma validação da Bronze em `tests/test_bronze_data.py`, pensada para co
 Se o ambiente tiver `pytest` instalado, o teste pode ser executado com:
 
 ```bash
-uv run python -m pytest tests/test_bronze_data.py tests/test_bronze_query.py tests/test_silver_transform.py tests/test_gold_build_features.py tests/test_dashboard_data_access.py
+uv run python -m pytest tests/test_bronze_data.py tests/test_bronze_query.py tests/test_bronze_prices_validator.py tests/test_silver_transform.py tests/test_gold_build_features.py tests/test_dashboard_data_access.py
 ```
 
 ---
@@ -217,6 +229,19 @@ O dashboard consome apenas `data/gold/...` e as queries versionadas em `queries/
 
 ---
 
+## ⚙️ Automação
+
+Existe um script operacional em `run_pipeline.sh` que executa:
+
+* `uv sync`
+* Bronze
+* Silver
+* Gold
+
+Além disso, ele grava logs em `logs/` e envia alertas por Telegram com variáveis carregadas de `.env`.
+
+---
+
 ## 🚀 Roadmap
 
 ### Fase 1 - Base de Dados
@@ -257,6 +282,7 @@ Dado um conjunto de ativos, responder:
 * O LLM será utilizado como camada de explicação, não como motor de decisão
 * A Bronze hoje salva localmente; S3 ainda não foi implementado
 * A Bronze pode ser explorada localmente via DuckDB usando o script de consulta e arquivos `.sql`
+* A regra de tolerância de preço é compartilhada entre Bronze e Silver via `src/validators/price_rules.py`
 * A Silver já materializa `prices_clean` e `asset_daily_status`
 * A Gold já materializa `asset_features` e `ranking_snapshot`
 * O dashboard pode consumir `queries/gold/` sem replicar regra de negócio

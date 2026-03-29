@@ -1,158 +1,156 @@
 # INVEST CERTO – PROJECT_CONTEXT
 
-> Este arquivo é a “memória” do projeto. Antes de mexer em qualquer coisa, **leia este contexto** para alinhar como o pipeline foi pensado, o que já existe e o que falta.
+> Este arquivo e a memoria operacional do projeto. Antes de mudar codigo, leia este contexto e confirme se `README.md` e `data_contracts/` continuam coerentes com a implementacao.
 
-## 1) Objetivo do projeto
-Construir uma plataforma simples de **recomendação de aportes mensais** (renda variável e FIIs), com base em dados históricos de preços, gerando **ranking/métricas** e usando **LLM apenas como camada de explicação** (RAG/GenAI **não** decide nada sozinho).
+## 1) Objetivo
 
-## 2) Arquitetura planejada (Bronze → Silver → Gold + GenAI)
-- **Bronze**: coleta (raw) -> histórico de preços
-- **Silver**: limpeza/normalização -> tabelas prontas para feature engineering
-- **Gold**: features + ranking -> “opções de aportes” para o usuário
-- **GenAI**: camada textual em cima do **Gold** (explicar e justificar escolhas)
-- Futuro: apoiar infra em **DuckDB/S3/Databricks** (README fala isso)
+Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em dados historicos de preco. O pipeline gera datasets analiticos e ranking; o LLM e apenas camada futura de explicacao, nao motor de decisao.
 
-## 3) O que já está implementado (estado atual)
+## 2) Arquitetura atual
 
-### 3.1 Bronze (coleta)
-- Script: `pipelines/bronze/collect_prices.py`
-- Consulta local: `pipelines/bronze/query_prices.py`
-- Entrada: `config/assets.txt`
-  - Formato esperado das linhas: `asset|type|source|ticker`
-  - `src/collect/reader.py` valida:
-    - todos os campos existem
-    - `asset` e `ticker` são únicos (sem duplicação)
-- Fonte: `yfinance` (`src/collect/fetcher.py`)
-  - Schema exigido: `date, open, high, low, close, adj_close, volume, asset, ticker`
-  - Falta de colunas relevantes estoura erro (isso é bom, evita drift silencioso)
-- Persistência: `src/collect/writer.py`
-  - Output local (por enquanto): `data/bronze/prices`
-  - Particionamento:
-    ```
-    data/bronze/prices/
-      asset=<asset>/
-        year=<yyyy>/
-          month=<mm>/
-            prices_<ingestion_timestamp>.parquet
-    ```
-  - O incremental funciona assim:
-    - pega a **maior `date`** já armazenada por `asset`
-    - começa a coleta no **dia seguinte**
-    - se não existe histórico, pega desde `2015-01-01`
-  - Arquivos parquet são salvos com colunas `year` e `month` removidas.
+- Bronze: coleta via `yfinance`, validacao e persistencia local em parquet.
+- Silver: limpeza, deduplicacao, enriquecimento de cadastro e status diario de elegibilidade.
+- Gold: features quantitativas e ranking diario para consumo do dashboard.
+- App: dashboard local em Streamlit lendo somente a Gold.
+- Futuro: S3, Databricks e camada GenAI/RAG.
 
-**Decisões implícitas até aqui:**
-- **`date` sem timezone** (naive) dentro dos dataframes/parquets (converter para UTC e depois remover tz).
-- O “S3” do README ainda **não foi aplicado**: hoje o Bronze salva localmente.
-- A forma recomendada de explorar a Bronze localmente e via DuckDB, usando a view temporaria `bronze_prices`.
+## 3) Estado implementado
 
-### 3.2 Silver / Gold
-- Silver implementada:
-  - `pipelines/silver/transform_prices.py`
-  - saidas fisicas:
-    - `data/silver/prices_clean`
-    - `data/silver/asset_daily_status`
-- Gold implementada:
-  - `pipelines/gold/build_features.py`
-  - saidas fisicas:
-    - `data/gold/asset_features`
-    - `data/gold/ranking_snapshot`
-- Dashboard local implementado:
-  - `app/streamlit_app.py`
-  - consumo exclusivo da Gold via `app/data_access.py`
-- Contratos já definidos:
-  - `data_contracts/bronze_prices.md`
-  - `data_contracts/silver_prices_clean.md`
-  - `data_contracts/silver_asset_daily_status.md`
-  - `data_contracts/gold_asset_features.md`
-  - `data_contracts/gold_ranking_snapshot.md`
-- Ou seja: Bronze, Silver e Gold ja estao estruturadas para suportar dashboard e camada futura de explicacao.
+### Bronze
 
-## 4) Checklist / backlog (ordem sugerida)
-1. Implementar **Silver** usando DuckDB:
-   - manter `prices_clean` como camada canonica
-   - manter `asset_daily_status` como camada de elegibilidade e prontidao analitica
-   - evoluir validacoes e cobertura de testes conforme novos casos reais
-2. Implementar **Gold**:
-   - manter `asset_features` como base canonica para graficos e sinais por ativo/data
-   - manter `ranking_snapshot` como base de recomendacao diaria para aporte
-   - expor consultas para dashboard sobre recomendacoes atuais, historico de preco, historico de ranking e overview de mercado
-3. **Alinhar com README**:
-   - introduzir S3/Boto3 (upload/download)
-   - versionamento de datasets
-4. Testes:
-   - unit tests para reader/fetcher/writer
-   - validação de schema (colunas, tipos) no Silver/Gold.
-
-## 5) Regras para continuar o projeto (Codex)
-Quando o Codex for “continuar”:
-- **Não reimplementar** o Bronze; respeitar:
-  - schema exigido
-  - incrementais via max(date)+1
-  - particionamento por `asset/year/month`
-- Para Silver e Gold:
-  - priorizar DuckDB para consultas (já está como dependência)
-  - tratar `date` como `DATE` para operações diárias e `TIMESTAMP` apenas onde fizer sentido
-  - evitar “sobra” de timezone (padronizar UTC→naive como no Bronze)
-  - usar a Silver como camada canônica para cálculo da Gold
-  - usar `asset_daily_status` para concentrar regras de prontidao e elegibilidade da Gold
-  - separar a Gold em pelo menos dois datasets: `asset_features` e `ranking_snapshot`
-  - Sempre alinhar o código com os contratos que você for criar (esse arquivo + `data_contracts/`).
-
-## 6) Comandos rápidos (para rodar no desenvolvimento)
-- Rodar Bronze:
-  ```
-  uv run python pipelines/bronze/collect_prices.py
-  ```
-- Consultar Bronze:
-  ```
-  uv run python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
-  ```
-- (Futuro) Silver e Gold: mantenha o padrão:
-- Rodar Silver:
-  ```
-  uv run python pipelines/silver/transform_prices.py
-  ```
-- Gold:
-  ```
-  uv run python pipelines/gold/build_features.py
-  ```
-- Dashboard:
-  ```
-  uv run streamlit run app/streamlit_app.py
-  ```
-
-## 7) Notas operacionais importantes
-- O `fetcher` pode não receber `Adj Close` do `yfinance` em alguns ativos/execuções.
-  - Nesses casos, o Bronze preenche `adj_close` com o valor de `close` para manter o schema estável.
-- A coleta incremental depende do histórico já salvo localmente em `data/bronze/prices`.
-  - Se a pasta for removida, a próxima execução volta a fazer carga completa desde `2015-01-01`.
-- O layout vigente do Bronze é:
-  ```
+- Entrada: `config/assets.txt`, formato `asset|type|source|ticker`.
+- Leitura e validacao de catalogo em `src/collect/reader.py`.
+- Coleta em `src/collect/fetcher.py` usando `yfinance`.
+- Persistencia em `src/collect/writer.py`.
+- Pipeline principal: `pipelines/bronze/collect_prices.py`.
+- Consulta local somente leitura: `pipelines/bronze/query_prices.py`.
+- Layout fisico:
+  ```text
   data/bronze/prices/
     asset=<asset>/
       year=<yyyy>/
         month=<mm>/
           prices_<ingestion_timestamp>.parquet
   ```
-- O projeto hoje usa `.venv` local para execução.
-  - Se o import de `src` falhar, o `PYTHONPATH=.` precisa estar presente no comando.
-- O utilitario de consulta da Bronze e somente leitura.
-  - Ele registra a view temporaria `bronze_prices` apontando para `data/bronze/prices/**/*.parquet`.
-  - As consultas sao fornecidas por arquivos `.sql` em `queries/bronze/`.
-- A Silver atual e full refresh.
-  - `prices_clean` e a base canonica para a Gold.
-  - `asset_daily_status` concentra flags de historico minimo, gap de calendario e elegibilidade.
-  - linhas anomalias do provider com `open/high/low = 0`, `close > 0` e `volume = 0` sao excluidas da `prices_clean`.
-- A Gold atual tambem e full refresh.
-  - `asset_features` concentra sinais diarios para graficos e analise.
-  - `ranking_snapshot` materializa score, ranking, buckets e deltas temporais para apoio ao aporte mensal.
-  - as queries de dashboard ficam em `queries/gold/`.
-- O dashboard atual usa Streamlit + Plotly.
-  - a leitura de dados acontece apenas sobre `data/gold/...`
-  - o fluxo operacional deve priorizar `uv run ...` e `uv sync`
+- Incremental por ativo:
+  - usa `max(date) + 1 dia` quando ja existe historico
+  - faz carga completa desde `2015-01-01` quando nao existe historico local
+- `date` e normalizada para timestamp naive.
+- Se `Adj Close` nao vier do provider, o pipeline preenche `adj_close = close`.
+- A validacao Bronze fica em `src/validators/bronze_prices_validator.py`.
+  - schema minimo obrigatorio
+  - colunas criticas sem nulos
+  - ausencia de duplicidade por `asset + date`
+  - precos e volume nao negativos
+  - consistencia de preco com tolerancia compartilhada `PRICE_TOLERANCE = 1e-3` definida em `src/validators/price_rules.py`
+  - a regra aceita ruido de ponto flutuante do provider sem arredondar ou reescrever o dado bruto
 
----
+### Silver
+
+- Pipeline: `pipelines/silver/transform_prices.py`.
+- Saidas:
+  - `data/silver/prices_clean`
+  - `data/silver/asset_daily_status`
+- Implementacao em DuckDB com full refresh.
+- `prices_clean`:
+  - le a Bronze inteira
+  - enriquece com `config/assets.txt`
+  - converte `date` para `DATE`
+  - remove duplicados exatos por `asset + date`
+  - falha em duplicidade conflitante
+  - remove anomalia do provider com `open/high/low = 0`, `close > 0`, `volume = 0`
+- `asset_daily_status`:
+  - calcula gaps de calendario
+  - calcula historico minimo em 30, 90 e 252 observacoes
+  - deriva `eligibility_status` e `is_feature_eligible`
+
+### Gold
+
+- Pipeline: `pipelines/gold/build_features.py`.
+- Saidas:
+  - `data/gold/asset_features`
+  - `data/gold/ranking_snapshot`
+- Full refresh a partir da Silver.
+- Materializa score, ranking, buckets de risco/momentum e deltas temporais.
+- Queries para dashboard ficam em `queries/gold/`.
+
+### Dashboard
+
+- App principal: `app/streamlit_app.py`.
+- Camada de acesso: `app/data_access.py`.
+- Consome apenas `data/gold/...` e queries versionadas em `queries/gold/`.
+
+### Contratos e testes
+
+- Contratos versionados em `data_contracts/`.
+- Testes existentes cobrem Bronze, query utility, Silver, Gold e acesso do dashboard.
+- Ha teste especifico da tolerancia Bronze em `tests/test_bronze_prices_validator.py`.
+- A suite usa `pytest`; se o ambiente nao tiver `pytest` instalado, os testes nao executam.
+
+## 4) Regras para continuar o projeto
+
+- Nao mudar o schema Bronze sem atualizar:
+  - `data_contracts/bronze_prices.md`
+  - `README.md`
+  - este arquivo
+- Nao remover a estrategia incremental da Bronze.
+- Nao introduzir arredondamento destrutivo nos precos de origem.
+- Reutilizar `src/validators/price_rules.py` para qualquer regra nova de tolerancia de preco; nao duplicar constantes entre Bronze e Silver.
+- Manter Silver e Gold como full refresh ate uma decisao explicita de incremental.
+- Priorizar DuckDB para leitura e transformacao local.
+- Tratar `date` como `DATE` nas camadas analiticas, salvo necessidade real de `TIMESTAMP`.
+- Qualquer nova regra de elegibilidade da Gold deve passar por `asset_daily_status` primeiro.
+
+## 5) Fluxo operacional recomendado
+
+- Sincronizar dependencias:
+  ```bash
+  uv sync
+  ```
+- Rodar Bronze:
+  ```bash
+  PYTHONPATH=. uv run python pipelines/bronze/collect_prices.py
+  ```
+- Consultar Bronze:
+  ```bash
+  PYTHONPATH=. uv run python pipelines/bronze/query_prices.py --file queries/bronze/summary_by_asset.sql
+  ```
+- Rodar Silver:
+  ```bash
+  uv run python pipelines/silver/transform_prices.py
+  ```
+- Rodar Gold:
+  ```bash
+  uv run python pipelines/gold/build_features.py
+  ```
+- Rodar dashboard:
+  ```bash
+  uv run streamlit run app/streamlit_app.py
+  ```
+- Rodar pipeline completo automatizado:
+  ```bash
+  ./run_pipeline.sh
+  ```
+
+## 6) Notas operacionais
+
+- `run_pipeline.sh` executa `uv sync`, Bronze, Silver e Gold em sequencia, grava logs em `logs/` e envia alertas por Telegram via `.env`.
+- Se `data/bronze/prices` for removido, a proxima Bronze volta a fazer backfill completo desde `2015-01-01`.
+- O utilitario `query_prices.py` e somente leitura e registra a view temporaria `bronze_prices` sobre `data/bronze/prices/**/*.parquet`.
+- O projeto pode precisar de `PYTHONPATH=.` em alguns comandos para resolver imports de `src`.
+- O README deve refletir a estrutura real:
+  - `src/collect`
+  - `src/validators`
+  - `tests/test_bronze_prices_validator.py`
+  - `run_pipeline.sh`
+
+## 7) Backlog real
+
+- Instalar e fixar `pytest` no ambiente do projeto para execucao consistente da suite.
+- Expandir testes unitarios de `reader`, `fetcher` e `writer`.
+- Evoluir operacionalizacao para S3 e versionamento de datasets.
+- Avaliar integracao futura com GenAI/RAG sem acoplar decisoes de investimento ao modelo.
 
 ## Como usar este arquivo
-Sempre que você fizer mudanças relevantes (estrutura, schema, regras de negócio), atualize este arquivo e faça o Codex “começar por aqui”.
+
+Sempre que houver mudanca de estrutura, contrato, regra de qualidade ou fluxo operacional, atualize este arquivo no mesmo conjunto de alteracoes.
