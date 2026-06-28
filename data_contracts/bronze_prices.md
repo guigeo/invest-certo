@@ -155,6 +155,7 @@ Regras:
 * cada execucao gera novos arquivos `prices_<ingestion_timestamp>.parquet`
 * a coleta e incremental por ativo
 * a data inicial da coleta de um ativo e calculada como `max(date) + 1 dia`
+* se o provider devolver linhas com `date <= max(date)` ja persistida para o ativo, essas linhas sao ignoradas antes da validacao e escrita
 * se o ativo nao tiver historico salvo, a coleta comeca em `2015-01-01`
 
 ## 10. Limitacoes conhecidas

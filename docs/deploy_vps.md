@@ -71,6 +71,8 @@ sudo systemctl enable --now invest-certo-pipeline.timer
 sudo systemctl enable --now invest-certo-dashboard.service
 ```
 
+O timer do pipeline usa `Tue..Sat 00:00:00` em UTC, equivalente a `Mon..Fri 21:00` no horario de Brasilia.
+
 ## Atualizar codigo na VPS
 
 Depois do primeiro deploy, o fluxo recomendado e:

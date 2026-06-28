@@ -101,6 +101,7 @@ Regra do incremental:
 
 * se o ativo ainda não tem histórico local, a coleta começa em `2015-01-01`
 * se já existe histórico, a coleta começa em `max(date) + 1 dia`
+* se o provider devolver linhas já persistidas, `date <= max(date)` é ignorado antes da validação e escrita
 * se não houver novos dados, o ativo é reportado como sem atualização
 
 Comando para rodar:

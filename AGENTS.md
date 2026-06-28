@@ -34,6 +34,7 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
   ```
 - Incremental por ativo:
   - usa `max(date) + 1 dia` quando ja existe historico
+  - ignora linhas com `date <= max(date)` quando o provider devolve registros ja persistidos
   - faz carga completa desde `2015-01-01` quando nao existe historico local
 - `date` e normalizada para timestamp naive.
 - Se `Adj Close` nao vier do provider, o pipeline preenche `adj_close = close`.

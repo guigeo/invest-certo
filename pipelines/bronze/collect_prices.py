@@ -3,6 +3,7 @@
 from datetime import timedelta
 from pathlib import Path
 import sys
+import pandas as pd
 from src.collect.reader import read_assets
 from src.collect.fetcher import fetch_price_history
 from src.collect.writer import get_latest_stored_date, save_price_history
@@ -12,6 +13,16 @@ from src.validators.bronze_prices_validator import validate_bronze_prices
 
 ASSETS_FILE = Path("config/assets.txt")
 OUTPUT_PATH = "data/bronze/prices"
+
+
+def filter_incremental_rows(df, last_stored_date):
+    if last_stored_date is None or df.empty:
+        return df
+
+    result = df.copy()
+    result["date"] = pd.to_datetime(result["date"], utc=True).dt.tz_localize(None)
+    last_stored_date = pd.to_datetime(last_stored_date, utc=True).tz_localize(None)
+    return result[result["date"] > last_stored_date].copy()
 
 
 def main() -> int:
@@ -43,6 +54,20 @@ def main() -> int:
 
             if df.empty:
                 print(f"⚠️ Sem novos dados para {asset}")
+                empty += 1
+                continue
+
+            rows_before_filter = len(df)
+            df = filter_incremental_rows(df, last_stored_date)
+            ignored_rows = rows_before_filter - len(df)
+
+            if ignored_rows:
+                print(
+                    f"Ignoradas {ignored_rows} linhas ja persistidas para {asset}"
+                )
+
+            if df.empty:
+                print(f"⚠️ Sem novos dados incrementais para {asset}")
                 empty += 1
                 continue
 
