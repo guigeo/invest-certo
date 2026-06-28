@@ -2,6 +2,8 @@
 
 Este guia descreve o caminho operacional recomendado para rodar o Invest Certo diariamente em uma VPS Ubuntu.
 
+Para o estado real atual da VPS ja publicada, consulte tambem `docs/vps_infra_current.md`.
+
 ## Requisitos
 
 - Ubuntu 24.04 LTS
@@ -152,6 +154,37 @@ https://dash.seudominio.com
 ```
 
 O dashboard deve pedir usuario e senha antes de carregar o Streamlit.
+
+## Dashboard com Caddy e Cloudflare
+
+No deploy atual da VPS, o dashboard tambem pode ser exposto com Caddy como reverse proxy e DNS na Cloudflare.
+
+Estado atual usado em producao:
+
+```text
+invest-certo-dash.averisen.com -> 91.99.176.140
+Caddy -> 127.0.0.1:8501
+Streamlit -> 127.0.0.1:8501
+```
+
+O registro DNS inicial deve ficar como `DNS only` na Cloudflare ate o Caddy emitir o certificado HTTPS.
+
+Exemplo de `/etc/caddy/Caddyfile`:
+
+```caddyfile
+invest-certo-dash.averisen.com {
+    reverse_proxy 127.0.0.1:8501
+}
+```
+
+Valide e recarregue:
+
+```bash
+caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+Depois que `https://invest-certo-dash.averisen.com` responder corretamente, ative o proxy da Cloudflare e configure SSL/TLS como `Full (strict)`.
 
 ## Backup
 

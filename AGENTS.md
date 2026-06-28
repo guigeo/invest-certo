@@ -144,7 +144,12 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
 - `ops/systemd/` contem templates para rodar o pipeline diario por timer e o dashboard Streamlit como servico.
 - `ops/nginx/` contem template de proxy reverso para expor o dashboard com Basic Auth e preparar HTTPS via Certbot.
 - `docs/deploy_vps.md` documenta o fluxo inicial para VPS Ubuntu.
+- `docs/vps_infra_current.md` documenta o estado real atual da VPS, incluindo aliases SSH, caminho do projeto, systemd de usuario, Caddy, Cloudflare, dominio publico e portas.
 - `scripts/deploy_pull.sh` documenta e automatiza o fluxo de atualizacao da VPS via Git: pull fast-forward, `uv sync`, restart do dashboard e disparo opcional do pipeline.
+- A configuracao de acesso da VPS do usuario fica em `.config`; antes de pedir dados de SSH novamente, consultar essa configuracao local sem copiar credenciais para documentacao.
+- Na VPS atual, o projeto esta em `/home/gramos/projects/invest-certo` e roda por systemd de usuario em `/home/gramos/.config/systemd/user/`.
+- O dashboard na VPS roda diretamente no sistema com Streamlit em `127.0.0.1:8501`; nao ha container Docker ativo para a aplicacao nesse deploy.
+- O dashboard publico da VPS usa Caddy como reverse proxy em `invest-certo-dash.averisen.com`, apontando para `127.0.0.1:8501`; o DNS fica na Cloudflare.
 - Se `data/bronze/prices` for removido, a proxima Bronze volta a fazer backfill completo desde `2015-01-01`.
 - O utilitario `query_prices.py` e somente leitura e registra a view temporaria `bronze_prices` sobre `data/bronze/prices/**/*.parquet`.
 - O projeto pode precisar de `PYTHONPATH=.` em alguns comandos para resolver imports de `src`.
