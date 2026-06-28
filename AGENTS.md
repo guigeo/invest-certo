@@ -11,8 +11,8 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
 - Bronze: coleta via `yfinance`, validacao e persistencia local em parquet.
 - Silver: limpeza, deduplicacao, enriquecimento de cadastro e status diario de elegibilidade.
 - Gold: features quantitativas e ranking diario para consumo do dashboard.
-- App: dashboard local em Streamlit lendo somente a Gold.
-- Futuro: S3, Databricks e camada GenAI/RAG.
+- App: dashboard local e Chat IA em Streamlit lendo somente a Gold.
+- Futuro: S3, Databricks e RAG com documentos locais.
 
 ## 3) Estado implementado
 
@@ -81,10 +81,25 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
 - Camada de acesso: `app/data_access.py`.
 - Consome apenas `data/gold/...` e queries versionadas em `queries/gold/`.
 
+### Chat IA - fase inicial
+
+- Pagina Streamlit: `app/pages/01_Chat_IA.py`.
+- Pacote: `app/ai/`.
+  - `agent.py`: cria e executa o agente Agno.
+  - `config.py`: le `LLM_PROVIDER`, `LLM_MODEL` e API keys via `.env`.
+  - `prompts.py`: instrucoes e limites do agente.
+  - `tools.py`: tools analiticas sobre a base interna.
+- Provedor inicial: OpenAI via Agno `OpenAIResponses`.
+- Fonte de verdade: somente `data/gold/asset_features`, `data/gold/ranking_snapshot`, queries Gold e `config/assets.txt`.
+- A fase inicial nao consulta internet, noticias, documentos externos, fundamentos ou balancos.
+- O chat e camada de apoio e explicacao, nao motor de decisao nem recomendacao financeira absoluta.
+- As tools disponiveis cobrem lista de ativos, snapshot atual, resumo historico, queda recente, comparacao e explicacao de ranking.
+
 ### Contratos e testes
 
 - Contratos versionados em `data_contracts/`.
 - Testes existentes cobrem Bronze, query utility, Silver, Gold e acesso do dashboard.
+- `tests/test_ai_tools.py` cobre as tools deterministicas do Chat IA sem chamada ao LLM.
 - Ha teste especifico da tolerancia Bronze em `tests/test_bronze_prices_validator.py`.
 - A suite usa `pytest`, declarado em `pyproject.toml` como dependencia opcional `dev`.
 
@@ -101,6 +116,9 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
 - Priorizar DuckDB para leitura e transformacao local.
 - Tratar `date` como `DATE` nas camadas analiticas, salvo necessidade real de `TIMESTAMP`.
 - Qualquer nova regra de elegibilidade da Gold deve passar por `asset_daily_status` primeiro.
+- Nao acoplar decisao de investimento ao LLM; o agente deve explicar dados calculados e declarar limites.
+- Nao adicionar busca web/RAG ao Chat IA sem decisao explicita e controle de fontes.
+- Tools do agente devem retornar dados estruturados e testaveis; deixar a redacao final para o LLM.
 
 ## 5) Fluxo operacional recomendado
 
@@ -132,6 +150,12 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
   ```bash
   uv run streamlit run app/streamlit_app.py
   ```
+- Configurar Chat IA local:
+  ```dotenv
+  LLM_PROVIDER=openai
+  LLM_MODEL=gpt-5-mini
+  OPENAI_API_KEY=
+  ```
 - Rodar pipeline completo automatizado:
   ```bash
   ./run_pipeline.sh
@@ -141,6 +165,7 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
 
 - `run_pipeline.sh` executa `uv sync`, Bronze, Silver e Gold em sequencia, resolve o diretorio do repositorio automaticamente, grava logs em `logs/` e envia alertas por Telegram via `.env` quando `TELEGRAM_TOKEN` e `CHAT_ID` estiverem definidos.
 - `.env.example` documenta as variaveis operacionais esperadas.
+- Para usar o Chat IA, gerar a Gold antes de abrir o Streamlit e configurar `OPENAI_API_KEY`.
 - `ops/systemd/` contem templates para rodar o pipeline diario por timer e o dashboard Streamlit como servico.
 - `ops/nginx/` contem template de proxy reverso para expor o dashboard com Basic Auth e preparar HTTPS via Certbot.
 - `docs/deploy_vps.md` documenta o fluxo inicial para VPS Ubuntu.

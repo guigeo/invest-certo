@@ -14,7 +14,9 @@ O objetivo é identificar, de forma orientada a dados, qual ativo está mais atr
 * Particionamento Bronze por `asset/year/month`
 * Silver implementada em DuckDB com duas visões físicas
 * Gold implementada com features, ranking e queries para dashboard
-* Evolução futura para S3, Databricks e camada GenAI
+* Dashboard e Chat IA em Streamlit consumindo somente a Gold
+* Chat IA em fase inicial com Agno + OpenAI, sem RAG e sem busca web
+* Evolução futura para S3, Databricks e RAG com documentos locais
 
 ---
 
@@ -55,6 +57,9 @@ invest-certo/
 │   └── deploy_pull.sh             # Atualizacao operacional na VPS via Git
 │
 ├── app/
+│   ├── ai/                        # Agente, prompts, config e tools do Chat IA
+│   ├── pages/
+│   │   └── 01_Chat_IA.py          # Página Streamlit do Chat IA
 │   ├── data_access.py             # Acesso a dados da Gold para o dashboard
 │   └── streamlit_app.py           # Dashboard local em Streamlit
 ├── docs/
@@ -138,6 +143,7 @@ O projeto ja possui testes cobrindo Bronze, Silver, Gold e dashboard. Os arquivo
 * `tests/test_silver_transform.py`
 * `tests/test_gold_build_features.py`
 * `tests/test_dashboard_data_access.py`
+* `tests/test_ai_tools.py`
 
 Essa cobertura valida:
 
@@ -149,6 +155,7 @@ Essa cobertura valida:
 * execução de consultas SQL na Bronze e tratamento de erros do utilitário
 * transformação da Silver e regras de elegibilidade diária
 * construção da Gold para dashboard e ranking de aporte
+* tools analíticas do Chat IA sobre a base interna, incluindo ativo inexistente, dados ausentes, queda recente e comparação entre ativos
 
 As dependencias de desenvolvimento incluem `pytest`. Para sincronizar e testar:
 
@@ -237,6 +244,47 @@ uv run streamlit run app/streamlit_app.py
 ```
 
 O dashboard consome apenas `data/gold/...` e as queries versionadas em `queries/gold/`.
+
+---
+
+## 💬 Chat IA - fase inicial
+
+O projeto possui uma página Streamlit de Chat IA em `app/pages/01_Chat_IA.py`.
+
+O chat usa Agno com OpenAI como provedor inicial e consulta somente dados internos da Gold. Ele responde sobre:
+
+* ativos monitorados em `config/assets.txt`
+* ranking atual
+* histórico de preço disponível na base interna
+* retornos de 30, 90 e 252 observações
+* volatilidade, drawdown, médias móveis e distância para máximas/mínimas recentes
+* comparação entre ativos e detecção de quedas recentes
+
+Limites da fase inicial:
+
+* não consulta internet
+* não lê notícias, fundamentos, balanços ou documentos externos
+* não faz recomendação financeira absoluta
+* responde como apoio analítico baseado nas métricas disponíveis
+
+Variáveis esperadas no `.env`:
+
+```dotenv
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-5-mini
+OPENAI_API_KEY=
+```
+
+Para usar:
+
+```bash
+uv sync
+uv run python pipelines/silver/transform_prices.py
+uv run python pipelines/gold/build_features.py
+uv run streamlit run app/streamlit_app.py
+```
+
+No Streamlit, abra a página `Chat IA` pelo menu lateral.
 
 ---
 

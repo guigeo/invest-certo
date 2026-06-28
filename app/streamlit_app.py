@@ -601,10 +601,25 @@ def main() -> None:
         st.plotly_chart(_build_ranking_history_chart(ranking_history, selected_asset), width='stretch')
 
 
-if __name__ == "__main__":
+def run_app() -> None:
+    dashboard_page = st.Page(
+        main,
+        title="Dashboard Ativos",
+        icon=":material/monitoring:",
+    )
+    chat_page = st.Page(
+        "pages/01_Chat_IA.py",
+        title="Chat",
+        icon=":material/chat:",
+    )
     st.set_page_config(
-        page_title="Invest Certo Dashboard",
+        page_title="Invest Certo",
         page_icon=":bar_chart:",
         layout="wide",
     )
-    main()
+    navigation = st.navigation([dashboard_page, chat_page])
+    navigation.run()
+
+
+if __name__ == "__main__":
+    run_app()
