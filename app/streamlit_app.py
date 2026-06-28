@@ -48,6 +48,63 @@ def _delta_label(value: float | None) -> str:
     return f"{value:+.0f}"
 
 
+def _rank_delta_text(value: float | None) -> str:
+    if pd.isna(value):
+        return "Sem histórico"
+    rounded = int(value)
+    if rounded > 0:
+        return f"Melhorou {rounded}"
+    if rounded < 0:
+        return f"Piorou {abs(rounded)}"
+    return "Estável"
+
+
+def _translate_value(value: object, translations: dict[str, str]) -> str:
+    if pd.isna(value):
+        return "-"
+    text = str(value)
+    return translations.get(text, text.replace("_", " ").title())
+
+
+RANKING_BUCKET_LABELS = {
+    "top_3": "Top 3",
+    "top_5": "Top 5",
+    "middle": "Meio do ranking",
+    "tail": "Fim do ranking",
+}
+
+MOMENTUM_LABELS = {
+    "strong": "Forte",
+    "neutral": "Neutro",
+    "weak": "Fraco",
+}
+
+RISK_LABELS = {
+    "low": "Baixo",
+    "medium": "Médio",
+    "high": "Alto",
+}
+
+ELIGIBILITY_LABELS = {
+    "eligible": "Elegível",
+    "insufficient_history": "Histórico insuficiente",
+    "calendar_gap_anomaly": "Falha no calendário",
+    "volume_missing": "Volume ausente",
+    "invalid_price": "Preço inválido",
+}
+
+SIGNAL_LABELS = {
+    "trend_strength": "Tendência forte",
+    "risk_adjusted_quality": "Boa relação retorno/risco",
+    "recovery_setup": "Possível recuperação",
+    "balanced_setup": "Perfil equilibrado",
+    "risk_control": "Risco controlado",
+    "price_above_moving_averages": "Preço acima das médias",
+    "deep_drawdown": "Queda relevante",
+    "watchlist": "Acompanhar",
+}
+
+
 def _bucket_color(bucket: str) -> str:
     colors = {
         "top_3": "#0f766e",
@@ -60,25 +117,92 @@ def _bucket_color(bucket: str) -> str:
 
 def _render_top_cards(recommendations: pd.DataFrame) -> None:
     top_five = recommendations.head(5)
-    st.subheader("Recomendacao do momento")
+    st.subheader("Recomendação do momento")
+    st.caption(
+        "Leitura rápida dos ativos mais bem posicionados no ranking atual. "
+        "O score combina tendência, momentum, risco e drawdown."
+    )
     card_columns = st.columns(len(top_five))
     for column, (_, row) in zip(card_columns, top_five.iterrows()):
         with column:
+            primary_signal = _translate_value(row["primary_signal"], SIGNAL_LABELS)
+            secondary_signal = _translate_value(row["secondary_signal"], SIGNAL_LABELS)
+            bucket = _translate_value(row["ranking_bucket"], RANKING_BUCKET_LABELS)
+            rank_delta = _rank_delta_text(row["rank_delta_7d"])
             st.markdown(
                 f"""
-                <div style="background:{_bucket_color(row['ranking_bucket'])};padding:1rem;border-radius:1rem;color:white;min-height:180px;">
-                    <div style="font-size:0.9rem;opacity:0.8;">Rank #{int(row['rank_position'])}</div>
+                <div style="background:{_bucket_color(row['ranking_bucket'])};padding:1rem;border-radius:0.5rem;color:white;min-height:230px;">
+                    <div style="font-size:0.85rem;opacity:0.82;">{bucket} · posição #{int(row['rank_position'])}</div>
                     <div style="font-size:1.5rem;font-weight:700;">{row['asset']}</div>
-                    <div style="margin-top:0.4rem;">Score {row['score']:.2f}</div>
-                    <div>{row['primary_signal'].replace('_', ' ')}</div>
-                    <div>{row['secondary_signal'].replace('_', ' ')}</div>
-                    <div style="margin-top:0.6rem;font-size:0.9rem;">Retorno 90d {row['return_90d']:.2%}</div>
-                    <div style="font-size:0.9rem;">Vol 30d {row['volatility_30d']:.2%}</div>
-                    <div style="font-size:0.9rem;">Drawdown {row['drawdown_252d']:.2%}</div>
+                    <div style="margin-top:0.35rem;font-size:1rem;">Score: <strong>{row['score']:.2f}</strong></div>
+                    <div style="margin-top:0.7rem;font-size:0.9rem;">{primary_signal}</div>
+                    <div style="font-size:0.9rem;">{secondary_signal}</div>
+                    <div style="margin-top:0.7rem;font-size:0.9rem;">Retorno em 90 dias: <strong>{row['return_90d']:.2%}</strong></div>
+                    <div style="font-size:0.9rem;">Volatilidade em 30 dias: <strong>{row['volatility_30d']:.2%}</strong></div>
+                    <div style="font-size:0.9rem;">Drawdown em 252 dias: <strong>{row['drawdown_252d']:.2%}</strong></div>
+                    <div style="margin-top:0.55rem;font-size:0.85rem;opacity:0.9;">Ranking em 7 dias: {rank_delta}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+
+
+def _executive_column_config() -> dict[str, object]:
+    return {
+        "Posição": st.column_config.NumberColumn(
+            "Posição",
+            help="Lugar do ativo no ranking atual. Quanto menor, melhor.",
+            format="%d",
+        ),
+        "Ativo": st.column_config.TextColumn(
+            "Ativo",
+            help="Código lógico do ativo acompanhado pelo projeto.",
+        ),
+        "Score": st.column_config.TextColumn(
+            "Score",
+            help="Nota comparativa do modelo quantitativo. Quanto maior, melhor.",
+        ),
+        "Faixa do ranking": st.column_config.TextColumn(
+            "Faixa do ranking",
+            help="Agrupamento simples da posição: Top 3, Top 5, meio ou fim do ranking.",
+        ),
+        "Sinal principal": st.column_config.TextColumn(
+            "Sinal principal",
+            help="Principal motivo quantitativo que ajudou o ativo a aparecer nessa posição.",
+        ),
+        "Sinal de apoio": st.column_config.TextColumn(
+            "Sinal de apoio",
+            help="Leitura complementar de risco, tendência ou acompanhamento.",
+        ),
+        "Retorno 90d": st.column_config.TextColumn(
+            "Retorno 90d",
+            help="Variação acumulada dos últimos 90 pregões observados.",
+        ),
+        "Volatilidade 30d": st.column_config.TextColumn(
+            "Volatilidade 30d",
+            help="Oscilação anualizada calculada com os últimos 30 pregões. Menor tende a indicar mais estabilidade.",
+        ),
+        "Drawdown 252d": st.column_config.TextColumn(
+            "Drawdown 252d",
+            help="Distância até o maior preço ajustado da janela de 252 pregões. Valor negativo indica queda desde o topo.",
+        ),
+        "Momentum": st.column_config.TextColumn(
+            "Momentum",
+            help="Classificação do retorno recente: forte, neutro ou fraco.",
+        ),
+        "Risco": st.column_config.TextColumn(
+            "Risco",
+            help="Classificação da volatilidade recente: baixo, médio ou alto.",
+        ),
+        "Ranking 7d": st.column_config.TextColumn(
+            "Ranking 7d",
+            help="Mudança de posição contra o snapshot comparável de pelo menos 7 dias atrás.",
+        ),
+        "Ranking 30d": st.column_config.TextColumn(
+            "Ranking 30d",
+            help="Mudança de posição contra o snapshot comparável de pelo menos 30 dias atrás.",
+        ),
+    }
 
 
 def _build_scatter_plot(df: pd.DataFrame) -> go.Figure:
@@ -105,13 +229,13 @@ def _build_scatter_plot(df: pd.DataFrame) -> go.Figure:
         labels={
             "volatility_30d": "Volatilidade 30d",
             "return_90d": "Retorno 90d",
-            "ranking_bucket": "Bucket",
+            "ranking_bucket": "Faixa",
         },
     )
     scatter.update_layout(
         height=440,
         margin=dict(l=20, r=20, t=30, b=20),
-        legend_title_text="Bucket do ranking",
+        legend_title_text="Faixa do ranking",
     )
     scatter.update_xaxes(tickformat=".0%")
     scatter.update_yaxes(tickformat=".0%")
@@ -124,7 +248,7 @@ def _build_price_chart(price_history: pd.DataFrame, asset: str) -> go.Figure:
         go.Scatter(
             x=price_history["reference_date"],
             y=price_history["adj_close"],
-            name="Preco ajustado",
+            name="Preço ajustado",
             line=dict(color="#111827", width=2.5),
         )
     )
@@ -145,7 +269,7 @@ def _build_price_chart(price_history: pd.DataFrame, asset: str) -> go.Figure:
         )
     )
     chart.update_layout(
-        title=f"Preco e tendencia de {asset}",
+        title=f"Preço e tendência de {asset}",
         height=430,
         margin=dict(l=20, r=20, t=55, b=20),
         legend_orientation="h",
@@ -195,7 +319,7 @@ def _build_market_chart(market_overview: pd.DataFrame) -> go.Figure:
         go.Scatter(
             x=market_overview["reference_date"],
             y=market_overview["eligible_asset_count"],
-            name="Ativos elegiveis",
+            name="Ativos elegíveis",
             line=dict(color="#111827", width=2.5),
         )
     )
@@ -261,7 +385,7 @@ def _build_ranking_history_chart(ranking_history: pd.DataFrame, asset: str) -> g
         )
     )
     chart.update_layout(
-        title=f"Historico de ranking de {asset}",
+        title=f"Histórico de ranking de {asset}",
         height=360,
         margin=dict(l=20, r=20, t=55, b=20),
         yaxis=dict(title="Rank", autorange="reversed"),
@@ -274,7 +398,7 @@ def _build_ranking_history_chart(ranking_history: pd.DataFrame, asset: str) -> g
 def main() -> None:
     st.title("Invest Certo")
     st.caption(
-        "Dashboard para apoiar a decisao de aporte mensal com ranking, tendencia, risco e leitura do mercado."
+        "Dashboard para apoiar a decisão de aporte mensal com ranking, tendência, risco e leitura do mercado."
     )
 
     try:
@@ -301,11 +425,11 @@ def main() -> None:
     eligible_asset_count = int((latest_snapshot["eligibility_status"] == "eligible").sum())
 
     metric_1, metric_2, metric_3 = st.columns(3)
-    metric_1.metric("Snapshot mais recente", latest_date.strftime("%d/%m/%Y"))
-    metric_2.metric("Ativos elegiveis", eligible_asset_count)
+    metric_1.metric("Última cotação analisada", latest_date.strftime("%d/%m/%Y"))
+    metric_2.metric("Ativos elegíveis", eligible_asset_count)
     metric_3.metric("Melhor ativo atual", top_pick_asset)
 
-    show_ineligible = st.toggle("Mostrar ativos inelegiveis", value=False)
+    show_ineligible = st.toggle("Mostrar ativos inelegíveis", value=False)
     asset_types = sorted(latest_snapshot["asset_type"].dropna().unique().tolist())
     selected_types = st.multiselect(
         "Filtrar por tipo de ativo",
@@ -323,6 +447,21 @@ def main() -> None:
     _render_top_cards(filtered_snapshot)
 
     st.markdown("### Tabela executiva")
+    st.caption(
+        "Tabela para comparar rapidamente posição, sinais, retorno e risco dos ativos elegíveis no snapshot atual."
+    )
+    with st.expander("O que significa cada coluna?"):
+        st.markdown(
+            """
+            - **Posição**: ordem do ativo no ranking atual; quanto menor, melhor.
+            - **Score**: nota comparativa calculada pela Gold. Ela combina tendência, momentum, retorno ajustado ao risco, volatilidade e drawdown.
+            - **Sinal principal** e **Sinal de apoio**: resumo em linguagem simples do que mais pesou na leitura quantitativa.
+            - **Retorno 90d**: retorno acumulado na janela recente de 90 observações.
+            - **Volatilidade 30d**: medida de oscilação recente. Em geral, menor volatilidade indica mais estabilidade.
+            - **Drawdown 252d**: distância em relação ao topo recente de 252 observações; valores negativos indicam queda desde o pico.
+            - **Ranking 7d/30d**: mostra se o ativo melhorou ou piorou de posição em relação ao histórico comparável.
+            """
+        )
     executive_table = filtered_snapshot[
         [
             "rank_position",
@@ -341,26 +480,78 @@ def main() -> None:
         ]
     ].copy()
     executive_table["score"] = _format_number(executive_table["score"])
+    executive_table["ranking_bucket"] = executive_table["ranking_bucket"].map(
+        lambda value: _translate_value(value, RANKING_BUCKET_LABELS)
+    )
+    executive_table["primary_signal"] = executive_table["primary_signal"].map(
+        lambda value: _translate_value(value, SIGNAL_LABELS)
+    )
+    executive_table["secondary_signal"] = executive_table["secondary_signal"].map(
+        lambda value: _translate_value(value, SIGNAL_LABELS)
+    )
     executive_table["return_90d"] = _format_pct(executive_table["return_90d"])
     executive_table["volatility_30d"] = _format_pct(executive_table["volatility_30d"])
     executive_table["drawdown_252d"] = _format_pct(executive_table["drawdown_252d"])
-    executive_table["rank_delta_7d"] = executive_table["rank_delta_7d"].map(_delta_label)
-    executive_table["rank_delta_30d"] = executive_table["rank_delta_30d"].map(_delta_label)
-    st.dataframe(executive_table, use_container_width=True, hide_index=True)
+    executive_table["momentum_bucket"] = executive_table["momentum_bucket"].map(
+        lambda value: _translate_value(value, MOMENTUM_LABELS)
+    )
+    executive_table["risk_bucket"] = executive_table["risk_bucket"].map(
+        lambda value: _translate_value(value, RISK_LABELS)
+    )
+    executive_table["rank_delta_7d"] = executive_table["rank_delta_7d"].map(_rank_delta_text)
+    executive_table["rank_delta_30d"] = executive_table["rank_delta_30d"].map(_rank_delta_text)
+    executive_table = executive_table.rename(
+        columns={
+            "rank_position": "Posição",
+            "asset": "Ativo",
+            "score": "Score",
+            "ranking_bucket": "Faixa do ranking",
+            "primary_signal": "Sinal principal",
+            "secondary_signal": "Sinal de apoio",
+            "return_90d": "Retorno 90d",
+            "volatility_30d": "Volatilidade 30d",
+            "drawdown_252d": "Drawdown 252d",
+            "momentum_bucket": "Momentum",
+            "risk_bucket": "Risco",
+            "rank_delta_7d": "Ranking 7d",
+            "rank_delta_30d": "Ranking 30d",
+        }
+    )
+    st.dataframe(
+        executive_table,
+        width='stretch',
+        hide_index=True,
+        column_config=_executive_column_config(),
+    )
 
-    st.markdown("### Comparacao rapida entre ativos")
+    st.markdown("### Comparação rápida entre ativos")
     scatter_col, summary_col = st.columns([1.4, 1.0])
     with scatter_col:
-        st.plotly_chart(_build_scatter_plot(filtered_snapshot), use_container_width=True)
+        st.plotly_chart(_build_scatter_plot(filtered_snapshot), width='stretch')
     with summary_col:
         summary_table = filtered_snapshot[
             ["rank_position", "asset", "score", "eligibility_status", "ranking_bucket"]
         ].copy()
         summary_table["score"] = _format_number(summary_table["score"])
-        st.dataframe(summary_table, use_container_width=True, hide_index=True)
+        summary_table["eligibility_status"] = summary_table["eligibility_status"].map(
+            lambda value: _translate_value(value, ELIGIBILITY_LABELS)
+        )
+        summary_table["ranking_bucket"] = summary_table["ranking_bucket"].map(
+            lambda value: _translate_value(value, RANKING_BUCKET_LABELS)
+        )
+        summary_table = summary_table.rename(
+            columns={
+                "rank_position": "Posição",
+                "asset": "Ativo",
+                "score": "Score",
+                "eligibility_status": "Elegibilidade",
+                "ranking_bucket": "Faixa",
+            }
+        )
+        st.dataframe(summary_table, width='stretch', hide_index=True)
 
     selected_asset = st.selectbox(
-        "Ativo para analise detalhada",
+        "Ativo para análise detalhada",
         options=filtered_snapshot["asset"].tolist(),
         index=max(filtered_snapshot["asset"].tolist().index(top_pick_asset), 0)
         if top_pick_asset in filtered_snapshot["asset"].tolist()
@@ -371,16 +562,22 @@ def main() -> None:
     ranking_history = get_ranking_history(selected_asset)
     latest_asset_row = filtered_snapshot[filtered_snapshot["asset"] == selected_asset].iloc[0]
 
-    st.markdown("### Analise detalhada do ativo")
+    st.markdown("### Análise detalhada do ativo")
     detail_metric_cols = st.columns(4)
     detail_metric_cols[0].metric("Score atual", f"{latest_asset_row['score']:.2f}")
-    detail_metric_cols[1].metric("Rank atual", f"#{int(latest_asset_row['rank_position'])}")
-    detail_metric_cols[2].metric("Rank delta 7d", _delta_label(latest_asset_row["rank_delta_7d"]))
-    detail_metric_cols[3].metric("Rank delta 30d", _delta_label(latest_asset_row["rank_delta_30d"]))
+    detail_metric_cols[1].metric("Posição atual", f"#{int(latest_asset_row['rank_position'])}")
+    detail_metric_cols[2].metric("Ranking 7d", _rank_delta_text(latest_asset_row["rank_delta_7d"]))
+    detail_metric_cols[3].metric("Ranking 30d", _rank_delta_text(latest_asset_row["rank_delta_30d"]))
 
     signal_metric_cols = st.columns(4)
-    signal_metric_cols[0].metric("Momentum", str(latest_asset_row["momentum_bucket"]).replace("_", " "))
-    signal_metric_cols[1].metric("Risco", str(latest_asset_row["risk_bucket"]).replace("_", " "))
+    signal_metric_cols[0].metric(
+        "Momentum",
+        _translate_value(latest_asset_row["momentum_bucket"], MOMENTUM_LABELS),
+    )
+    signal_metric_cols[1].metric(
+        "Risco",
+        _translate_value(latest_asset_row["risk_bucket"], RISK_LABELS),
+    )
     signal_metric_cols[2].metric(
         "Distancia MA20",
         f"{latest_asset_row['distance_to_ma20']:.2%}" if pd.notna(latest_asset_row["distance_to_ma20"]) else "-",
@@ -392,16 +589,16 @@ def main() -> None:
 
     price_col, risk_col = st.columns([1.45, 1.0])
     with price_col:
-        st.plotly_chart(_build_price_chart(price_history, selected_asset), use_container_width=True)
+        st.plotly_chart(_build_price_chart(price_history, selected_asset), width='stretch')
     with risk_col:
-        st.plotly_chart(_build_risk_chart(price_history, selected_asset), use_container_width=True)
+        st.plotly_chart(_build_risk_chart(price_history, selected_asset), width='stretch')
 
-    st.markdown("### Visao de mercado")
+    st.markdown("### Visão de mercado")
     overview_col, history_col = st.columns([1.35, 1.0])
     with overview_col:
-        st.plotly_chart(_build_market_chart(market_overview), use_container_width=True)
+        st.plotly_chart(_build_market_chart(market_overview), width='stretch')
     with history_col:
-        st.plotly_chart(_build_ranking_history_chart(ranking_history, selected_asset), use_container_width=True)
+        st.plotly_chart(_build_ranking_history_chart(ranking_history, selected_asset), width='stretch')
 
 
 if __name__ == "__main__":

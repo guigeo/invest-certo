@@ -150,6 +150,7 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
 - Na VPS atual, o projeto esta em `/home/gramos/projects/invest-certo` e roda por systemd de usuario em `/home/gramos/.config/systemd/user/`.
 - O dashboard na VPS roda diretamente no sistema com Streamlit em `127.0.0.1:8501`; nao ha container Docker ativo para a aplicacao nesse deploy.
 - O dashboard publico da VPS usa Caddy como reverse proxy em `invest-certo-dash.averisen.com`, apontando para `127.0.0.1:8501`; o DNS fica na Cloudflare.
+- Quando o usuario falar "producao", ele esta se referindo a aplicacao publicada na VPS em `https://invest-certo-dash.averisen.com`.
 - Se `data/bronze/prices` for removido, a proxima Bronze volta a fazer backfill completo desde `2015-01-01`.
 - O utilitario `query_prices.py` e somente leitura e registra a view temporaria `bronze_prices` sobre `data/bronze/prices/**/*.parquet`.
 - O projeto pode precisar de `PYTHONPATH=.` em alguns comandos para resolver imports de `src`.
