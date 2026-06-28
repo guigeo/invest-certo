@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Invest Certo data pipeline every business evening
+
+[Timer]
+OnCalendar=Mon..Fri 21:00:00
+Persistent=true
+Unit=invest-certo-pipeline.service
+
+[Install]
+WantedBy=timers.target
+

@@ -51,10 +51,19 @@ invest-certo/
 │   ├── silver/                    # Queries SQL reutilizáveis da Silver
 │   └── gold/                      # Queries SQL para o dashboard da Gold
 │
+├── scripts/
+│   └── deploy_pull.sh             # Atualizacao operacional na VPS via Git
+│
 ├── app/
 │   ├── data_access.py             # Acesso a dados da Gold para o dashboard
 │   └── streamlit_app.py           # Dashboard local em Streamlit
+├── docs/
+│   └── deploy_vps.md              # Guia operacional para VPS
+├── ops/
+│   ├── nginx/                     # Template de proxy reverso para dashboard
+│   └── systemd/                   # Units para pipeline diario e dashboard
 ├── run_pipeline.sh                # Pipeline completo com log e alerta
+├── .env.example                   # Exemplo de variaveis operacionais
 ├── data/                          # Dados gerados localmente
 ├── tests/                         # Testes do pipeline e contratos
 ├── AGENTS.md                      # Memória operacional do projeto
@@ -140,10 +149,11 @@ Essa cobertura valida:
 * transformação da Silver e regras de elegibilidade diária
 * construção da Gold para dashboard e ranking de aporte
 
-Se o ambiente tiver `pytest` instalado, o teste pode ser executado com:
+As dependencias de desenvolvimento incluem `pytest`. Para sincronizar e testar:
 
 ```bash
-uv run python -m pytest tests/test_bronze_data.py tests/test_bronze_query.py tests/test_bronze_prices_validator.py tests/test_silver_transform.py tests/test_gold_build_features.py tests/test_dashboard_data_access.py
+uv sync --extra dev
+uv run python -m pytest
 ```
 
 ---
@@ -238,7 +248,21 @@ Existe um script operacional em `run_pipeline.sh` que executa:
 * Silver
 * Gold
 
-Além disso, ele grava logs em `logs/` e envia alertas por Telegram com variáveis carregadas de `.env`.
+O script e portatil: ele resolve o diretorio do proprio repositorio, usa `uv` do `PATH` por padrao e grava logs em `logs/`. Se `.env` existir e tiver `TELEGRAM_TOKEN` e `CHAT_ID`, ele envia alertas por Telegram; se essas variaveis estiverem ausentes, o pipeline roda sem alerta.
+
+Para preparar uma VPS, use os templates em `ops/systemd/`, `ops/nginx/` e o guia em `docs/deploy_vps.md`.
+
+Depois do primeiro deploy, a atualizacao normal da VPS pode ser feita com:
+
+```bash
+scripts/deploy_pull.sh
+```
+
+Para atualizar e disparar o pipeline logo apos o deploy:
+
+```bash
+scripts/deploy_pull.sh --run-pipeline
+```
 
 ---
 
@@ -287,4 +311,5 @@ Dado um conjunto de ativos, responder:
 * A Gold já materializa `asset_features` e `ranking_snapshot`
 * O dashboard pode consumir `queries/gold/` sem replicar regra de negócio
 * O fluxo Python do projeto agora prioriza `uv` para sincronizar dependencias e rodar os comandos
+* O deploy em VPS deve usar `run_pipeline.sh` via `systemd timer` e Streamlit via `systemd service`
 * A estrutura foi pensada para futura migração para Databricks

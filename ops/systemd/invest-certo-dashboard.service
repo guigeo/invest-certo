@@ -1,0 +1,19 @@
+[Unit]
+Description=Invest Certo Streamlit dashboard
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=investcerto
+Group=investcerto
+WorkingDirectory=/opt/invest-certo
+Environment=PATH=/opt/invest-certo/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=UV_CACHE_DIR=/opt/invest-certo/.uv-cache
+Environment=PYTHONPATH=/opt/invest-certo
+ExecStart=/usr/bin/env uv run streamlit run app/streamlit_app.py --server.address 127.0.0.1 --server.port 8501
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

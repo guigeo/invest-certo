@@ -43,6 +43,7 @@ venv.bak/
 data/
 
 # Logs
+logs/
 *.log
 
 # IDE
@@ -70,5 +71,6 @@ dmypy.json
 
 # Cache
 .cache/
+.uv-cache/
 .python-version
 .pyenv/

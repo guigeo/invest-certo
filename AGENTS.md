@@ -85,7 +85,7 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
 - Contratos versionados em `data_contracts/`.
 - Testes existentes cobrem Bronze, query utility, Silver, Gold e acesso do dashboard.
 - Ha teste especifico da tolerancia Bronze em `tests/test_bronze_prices_validator.py`.
-- A suite usa `pytest`; se o ambiente nao tiver `pytest` instalado, os testes nao executam.
+- A suite usa `pytest`, declarado em `pyproject.toml` como dependencia opcional `dev`.
 
 ## 4) Regras para continuar o projeto
 
@@ -106,6 +106,10 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
 - Sincronizar dependencias:
   ```bash
   uv sync
+  ```
+- Sincronizar dependencias de desenvolvimento:
+  ```bash
+  uv sync --extra dev
   ```
 - Rodar Bronze:
   ```bash
@@ -134,7 +138,12 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
 
 ## 6) Notas operacionais
 
-- `run_pipeline.sh` executa `uv sync`, Bronze, Silver e Gold em sequencia, grava logs em `logs/` e envia alertas por Telegram via `.env`.
+- `run_pipeline.sh` executa `uv sync`, Bronze, Silver e Gold em sequencia, resolve o diretorio do repositorio automaticamente, grava logs em `logs/` e envia alertas por Telegram via `.env` quando `TELEGRAM_TOKEN` e `CHAT_ID` estiverem definidos.
+- `.env.example` documenta as variaveis operacionais esperadas.
+- `ops/systemd/` contem templates para rodar o pipeline diario por timer e o dashboard Streamlit como servico.
+- `ops/nginx/` contem template de proxy reverso para expor o dashboard com Basic Auth e preparar HTTPS via Certbot.
+- `docs/deploy_vps.md` documenta o fluxo inicial para VPS Ubuntu.
+- `scripts/deploy_pull.sh` documenta e automatiza o fluxo de atualizacao da VPS via Git: pull fast-forward, `uv sync`, restart do dashboard e disparo opcional do pipeline.
 - Se `data/bronze/prices` for removido, a proxima Bronze volta a fazer backfill completo desde `2015-01-01`.
 - O utilitario `query_prices.py` e somente leitura e registra a view temporaria `bronze_prices` sobre `data/bronze/prices/**/*.parquet`.
 - O projeto pode precisar de `PYTHONPATH=.` em alguns comandos para resolver imports de `src`.
@@ -146,7 +155,6 @@ Construir uma plataforma de apoio a aporte mensal em acoes e FIIs, baseada em da
 
 ## 7) Backlog real
 
-- Instalar e fixar `pytest` no ambiente do projeto para execucao consistente da suite.
 - Expandir testes unitarios de `reader`, `fetcher` e `writer`.
 - Evoluir operacionalizacao para S3 e versionamento de datasets.
 - Avaliar integracao futura com GenAI/RAG sem acoplar decisoes de investimento ao modelo.

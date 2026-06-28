@@ -1,0 +1,13 @@
+[Unit]
+Description=Invest Certo daily data pipeline
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=investcerto
+Group=investcerto
+WorkingDirectory=/opt/invest-certo
+Environment=PATH=/opt/invest-certo/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=UV_CACHE_DIR=/opt/invest-certo/.uv-cache
+ExecStart=/opt/invest-certo/run_pipeline.sh
