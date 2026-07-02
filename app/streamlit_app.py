@@ -7,6 +7,7 @@ import streamlit as st
 
 from app.data_access import (
     GoldDataNotReadyError,
+    get_gold_data_version,
     load_latest_recommendations,
     load_market_overview,
     load_price_history,
@@ -15,22 +16,22 @@ from app.data_access import (
 
 
 @st.cache_data(show_spinner=False)
-def get_latest_recommendations() -> pd.DataFrame:
+def get_latest_recommendations(data_version: tuple[int, int]) -> pd.DataFrame:
     return load_latest_recommendations()
 
 
 @st.cache_data(show_spinner=False)
-def get_price_history(asset: str | None = None) -> pd.DataFrame:
+def get_price_history(data_version: tuple[int, int], asset: str | None = None) -> pd.DataFrame:
     return load_price_history(asset)
 
 
 @st.cache_data(show_spinner=False)
-def get_ranking_history(asset: str | None = None) -> pd.DataFrame:
+def get_ranking_history(data_version: tuple[int, int], asset: str | None = None) -> pd.DataFrame:
     return load_ranking_history(asset)
 
 
 @st.cache_data(show_spinner=False)
-def get_market_overview() -> pd.DataFrame:
+def get_market_overview(data_version: tuple[int, int]) -> pd.DataFrame:
     return load_market_overview()
 
 
@@ -402,8 +403,9 @@ def main() -> None:
     )
 
     try:
-        recommendations = get_latest_recommendations()
-        market_overview = get_market_overview()
+        data_version = get_gold_data_version()
+        recommendations = get_latest_recommendations(data_version)
+        market_overview = get_market_overview(data_version)
     except GoldDataNotReadyError as exc:
         st.warning(str(exc))
         st.code(
@@ -558,8 +560,8 @@ def main() -> None:
         else 0,
     )
 
-    price_history = get_price_history(selected_asset)
-    ranking_history = get_ranking_history(selected_asset)
+    price_history = get_price_history(data_version, selected_asset)
+    ranking_history = get_ranking_history(data_version, selected_asset)
     latest_asset_row = filtered_snapshot[filtered_snapshot["asset"] == selected_asset].iloc[0]
 
     st.markdown("### Análise detalhada do ativo")

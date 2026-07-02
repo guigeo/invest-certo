@@ -6,6 +6,7 @@ import pytest
 from app.data_access import (
     GoldDataNotReadyError,
     ensure_gold_data_ready,
+    get_gold_data_version,
     load_latest_recommendations,
     load_market_overview,
     load_price_history,
@@ -51,6 +52,19 @@ def test_dashboard_data_access_loads_latest_snapshot(
     recommendations = load_latest_recommendations()
     assert recommendations["reference_date"].nunique() == 1
     assert recommendations.iloc[0]["asset"] == "ALFA3"
+
+
+def test_gold_data_version_changes_when_gold_files_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    materialize_gold(tmp_path, monkeypatch)
+
+    initial_version = get_gold_data_version()
+    extra_file = tmp_path / "data" / "gold" / "ranking_snapshot" / "extra.parquet"
+    pd.DataFrame({"reference_date": [pd.Timestamp("2026-01-01")]}).to_parquet(extra_file)
+
+    assert get_gold_data_version() != initial_version
 
 
 def test_dashboard_data_access_filters_history_by_asset(

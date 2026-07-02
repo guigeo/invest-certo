@@ -46,6 +46,17 @@ def ensure_gold_data_ready() -> None:
         )
 
 
+def get_gold_data_version() -> tuple[int, int]:
+    """Return a lightweight version for cache invalidation when Gold files change."""
+    ensure_gold_data_ready()
+    parquet_files = [
+        *(_asset_features_dir().rglob("*.parquet")),
+        *(_ranking_snapshot_dir().rglob("*.parquet")),
+    ]
+    latest_mtime_ns = max(path.stat().st_mtime_ns for path in parquet_files)
+    return len(parquet_files), latest_mtime_ns
+
+
 def _load_query(query_name: str) -> str:
     query_path = QUERIES_DIR / query_name
     if not query_path.exists():
